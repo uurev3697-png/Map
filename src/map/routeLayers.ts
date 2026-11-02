@@ -4,11 +4,20 @@ import { ROUTE_COLORS } from './styles'
 
 const SRC_ALL = 'routes-all'
 const SRC_ACTIVE = 'routes-active'
-const L_INACTIVE_CAR = 'route-inactive-car'
-const L_INACTIVE_FOOT = 'route-inactive-foot'
+const SRC_ALT = 'routes-alt'
+export const L_ALT_HIT = 'route-alt-hit'
+const L_ALT_CASING = 'route-alt-casing'
+const L_ALT = 'route-alt'
+const L_INACTIVE_CASING = 'route-inactive-casing'
+const L_INACTIVE: Record<TravelMode, string> = {
+  car: 'route-inactive-car',
+  bike: 'route-inactive-bike',
+  foot: 'route-inactive-foot',
+}
 const L_GLOW = 'route-active-glow'
 const L_CASING = 'route-active-casing'
 const L_LINE = 'route-active-line'
+const L_FOOT_DOTS = 'route-active-foot-dots'
 
 const EMPTY: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: [] }
 const CLEAR = 'rgba(0,0,0,0)'
@@ -35,20 +44,39 @@ const w = (z12: number, z16: number, z18: number): ExpressionSpecification => [
   'interpolate', ['linear'], ['zoom'], 10, z12 * 0.8, 12, z12, 16, z16, 18, z18,
 ]
 
-const L_INACTIVE_CASING = 'route-inactive-casing'
-const L_FOOT_DOTS = 'route-active-foot-dots'
+const line = (coords: [number, number][], props: Record<string, unknown> = {}) => ({
+  type: 'Feature' as const,
+  properties: props,
+  geometry: { type: 'LineString' as const, coordinates: coords },
+})
 
 /** Добавляет источники и слои маршрута (повторно — после смены стиля). */
 export function ensureRouteLayers(map: MlMap) {
   if (map.getSource(SRC_ALL)) return
   const before = firstSymbolLayer(map)
+  map.addSource(SRC_ALT, { type: 'geojson', data: EMPTY })
   map.addSource(SRC_ALL, { type: 'geojson', data: EMPTY })
   map.addSource(SRC_ACTIVE, { type: 'geojson', data: EMPTY, lineMetrics: true })
 
   const layout = { 'line-join': 'round' as const, 'line-cap': 'round' as const }
   const inactive: ExpressionSpecification = ['!', ['get', 'active']]
 
-  // Неактивные маршруты: мягкая подложка + цветная линия (пешком — точками)
+  // Альтернативные варианты активного режима: серые, кликабельные
+  map.addLayer(
+    { id: L_ALT_CASING, type: 'line', source: SRC_ALT, layout, paint: { 'line-color': '#ffffff', 'line-width': w(9, 12, 16) } },
+    before,
+  )
+  map.addLayer(
+    { id: L_ALT, type: 'line', source: SRC_ALT, layout, paint: { 'line-color': '#8a94a6', 'line-width': w(5, 7, 10) } },
+    before,
+  )
+  // Широкая невидимая линия — чтобы по альтернативе было легко попасть пальцем
+  map.addLayer(
+    { id: L_ALT_HIT, type: 'line', source: SRC_ALT, layout, paint: { 'line-color': '#000', 'line-opacity': 0, 'line-width': 24 } },
+    before,
+  )
+
+  // Неактивные способы передвижения: мягкая подложка + цветная линия
   map.addLayer(
     {
       id: L_INACTIVE_CASING,
@@ -60,33 +88,25 @@ export function ensureRouteLayers(map: MlMap) {
     },
     before,
   )
-  map.addLayer(
-    {
-      id: L_INACTIVE_CAR,
-      type: 'line',
-      source: SRC_ALL,
-      layout,
-      filter: ['all', ['==', ['get', 'mode'], 'car'], inactive],
-      paint: { 'line-color': ROUTE_COLORS.car.from, 'line-width': w(4, 6, 9), 'line-opacity': 0.55 },
-    },
-    before,
-  )
-  map.addLayer(
-    {
-      id: L_INACTIVE_FOOT,
-      type: 'line',
-      source: SRC_ALL,
-      layout,
-      filter: ['all', ['==', ['get', 'mode'], 'foot'], inactive],
-      paint: {
-        'line-color': ROUTE_COLORS.foot.from,
-        'line-width': w(4.5, 6.5, 9),
-        'line-opacity': 0.9,
-        'line-dasharray': [0.1, 1.8],
+  const dash: Record<TravelMode, number[] | undefined> = { car: undefined, bike: [1.2, 1.4], foot: [0.1, 1.8] }
+  for (const m of ['car', 'bike', 'foot'] as const) {
+    map.addLayer(
+      {
+        id: L_INACTIVE[m],
+        type: 'line',
+        source: SRC_ALL,
+        layout: m === 'bike' ? { 'line-join': 'round', 'line-cap': 'butt' } : layout,
+        filter: ['all', ['==', ['get', 'mode'], m], inactive],
+        paint: {
+          'line-color': ROUTE_COLORS[m].from,
+          'line-width': m === 'car' ? w(4, 6, 9) : w(4.5, 6.5, 9),
+          'line-opacity': m === 'car' ? 0.55 : 0.85,
+          ...(dash[m] ? { 'line-dasharray': dash[m] } : {}),
+        },
       },
-    },
-    before,
-  )
+      before,
+    )
+  }
 
   // Активный маршрут: тень/свечение → контрастная обводка → градиентная линия
   map.addLayer(
@@ -138,25 +158,27 @@ export function ensureRouteLayers(map: MlMap) {
   )
 }
 
-export function setRouteData(map: MlMap, routes: Partial<Record<TravelMode, Route>>, active: TravelMode) {
+/**
+ * routes — выбранный вариант для каждого способа передвижения;
+ * alternatives — остальные варианты активного способа (idx — номер варианта).
+ */
+export function setRouteData(
+  map: MlMap,
+  routes: Partial<Record<TravelMode, Route>>,
+  active: TravelMode,
+  alternatives: { idx: number; route: Route }[],
+) {
   const all = map.getSource(SRC_ALL) as GeoJSONSource | undefined
   const act = map.getSource(SRC_ACTIVE) as GeoJSONSource | undefined
-  if (!all || !act) return
-  const features = (Object.values(routes) as Route[]).map((r) => ({
-    type: 'Feature' as const,
-    properties: { mode: r.mode, active: r.mode === active },
-    geometry: { type: 'LineString' as const, coordinates: r.geometry },
-  }))
-  all.setData({ type: 'FeatureCollection', features })
+  const alt = map.getSource(SRC_ALT) as GeoJSONSource | undefined
+  if (!all || !act || !alt) return
+  all.setData({
+    type: 'FeatureCollection',
+    features: (Object.values(routes) as Route[]).map((r) => line(r.geometry, { mode: r.mode, active: r.mode === active })),
+  })
   const a = routes[active]
-  act.setData(
-    a
-      ? {
-          type: 'FeatureCollection',
-          features: [{ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: a.geometry } }],
-        }
-      : EMPTY,
-  )
+  act.setData(a ? { type: 'FeatureCollection', features: [line(a.geometry)] } : EMPTY)
+  alt.setData({ type: 'FeatureCollection', features: alternatives.map((x) => line(x.route.geometry, { idx: x.idx })) })
 }
 
 export function paintActive(map: MlMap, mode: TravelMode, t: number, night: boolean) {
@@ -175,7 +197,10 @@ export function paintActive(map: MlMap, mode: TravelMode, t: number, night: bool
     'line-opacity',
     mode === 'foot' && t >= 0.999 ? ['interpolate', ['linear'], ['zoom'], 13.5, 0, 14.5, 0.95] : 0,
   )
-  map.setPaintProperty(L_INACTIVE_CASING, 'line-color', night ? '#0e1117' : '#ffffff')
+  const under = night ? '#0e1117' : '#ffffff'
+  map.setPaintProperty(L_INACTIVE_CASING, 'line-color', under)
+  map.setPaintProperty(L_ALT_CASING, 'line-color', under)
+  map.setPaintProperty(L_ALT, 'line-color', night ? '#7d8799' : '#9aa3b2')
 }
 
 const ease = (x: number) => 1 - Math.pow(1 - x, 3)

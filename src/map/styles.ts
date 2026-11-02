@@ -65,5 +65,6 @@ export async function styleFor(id: Exclude<LayerId, 'google'>, winter: boolean):
 export const ROUTE_COLORS = {
   car: { from: '#6366f1', to: '#8b5cf6', casing: '#ffffff', casingDark: '#0b0d12' },
   foot: { from: '#16b364', to: '#0e9384', casing: '#ffffff', casingDark: '#0b0d12' },
+  bike: { from: '#f59e0b', to: '#ea580c', casing: '#ffffff', casingDark: '#0b0d12' },
   inactive: '#64748b',
 } as const

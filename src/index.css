@@ -145,6 +145,15 @@ body {
   --c1: #fb7185;
   --c2: #e11d48;
 }
+.route-marker--stop {
+  --c1: #94a3b8;
+  --c2: #475569;
+}
+.route-marker--stop .route-marker__pin {
+  width: 32px;
+  height: 32px;
+  font-size: 14px;
+}
 .route-marker__inner {
   position: absolute;
   inset: 0;
@@ -293,6 +302,100 @@ body {
   to {
     transform: none;
     opacity: 1;
+  }
+}
+
+/* ===== Новогодняя ночь: ёлочка вместо «Б» ===== */
+.newyear-eve .route-marker--to {
+  --c1: #4ade80;
+  --c2: #15803d;
+}
+.newyear-eve .route-marker--to .route-marker__pin span {
+  font-size: 0;
+}
+.newyear-eve .route-marker--to .route-marker__pin span::before {
+  content: '🎄';
+  font-size: 20px;
+}
+
+/* ===== Гирлянда ===== */
+.garland-bulb {
+  width: 7px;
+  height: 10px;
+  margin-left: -3.5px;
+  border-radius: 50% 50% 45% 45%;
+  background: var(--c);
+  box-shadow: 0 0 6px 1px var(--c);
+  animation: bulb 1.5s ease-in-out infinite;
+}
+.garland-bulb::before {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: 2px;
+  width: 3px;
+  height: 3px;
+  border-radius: 1px;
+  background: #4b5563;
+}
+@keyframes bulb {
+  0%,
+  100% {
+    opacity: 1;
+    filter: brightness(1.15);
+  }
+  50% {
+    opacity: 0.35;
+    filter: brightness(0.7);
+    box-shadow: 0 0 2px 0 var(--c);
+  }
+}
+
+/* ===== «Я здесь» ===== */
+.me-marker {
+  position: relative;
+  width: 22px;
+  height: 22px;
+}
+.me-marker__dot {
+  position: absolute;
+  inset: 3px;
+  border-radius: 50%;
+  background: #0ea5e9;
+  border: 3px solid #fff;
+  box-shadow: 0 2px 6px rgba(2, 132, 199, 0.5);
+}
+.me-marker__pulse {
+  position: absolute;
+  inset: -10px;
+  border-radius: 50%;
+  background: rgba(14, 165, 233, 0.25);
+  animation: me-pulse 2s ease-out infinite;
+}
+.me-marker__cone {
+  position: absolute;
+  left: 50%;
+  bottom: 50%;
+  width: 56px;
+  height: 56px;
+  margin-left: -28px;
+  transform-origin: 50% 100%;
+  background: radial-gradient(circle at 50% 100%, rgba(14, 165, 233, 0.45), rgba(14, 165, 233, 0) 70%);
+  clip-path: polygon(50% 100%, 18% 0, 82% 0);
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+.me-marker.has-heading .me-marker__cone {
+  opacity: 1;
+}
+@keyframes me-pulse {
+  0% {
+    transform: scale(0.4);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1.4);
+    opacity: 0;
   }
 }
 

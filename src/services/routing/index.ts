@@ -1,9 +1,9 @@
 import type { LngLat, Route, TravelMode } from '../types'
 import { OrsProvider } from './ors'
 import { OsrmProvider } from './osrm'
-import type { RoutingProvider } from './types'
+import type { RouteOptions, RoutingProvider } from './types'
 
-export type { RoutingProvider }
+export type { RouteOptions, RoutingProvider }
 
 const orsKey = import.meta.env.VITE_ORS_API_KEY?.trim()
 
@@ -13,6 +13,7 @@ const orsKey = import.meta.env.VITE_ORS_API_KEY?.trim()
  */
 export const routingProvider: RoutingProvider = orsKey ? new OrsProvider(orsKey) : new OsrmProvider()
 
-export function buildRoute(mode: TravelMode, from: LngLat, to: LngLat, signal?: AbortSignal): Promise<Route> {
-  return routingProvider.route(mode, from, to, signal)
+/** Варианты маршрута через все точки (основной — первым). */
+export function buildRoutes(mode: TravelMode, points: LngLat[], opts?: RouteOptions): Promise<Route[]> {
+  return routingProvider.route(mode, points, opts)
 }

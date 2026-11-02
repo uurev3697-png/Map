@@ -66,13 +66,12 @@ function Overlay(props: MapViewProps) {
   // Вписать маршрут
   useEffect(() => {
     if (!map || !props.fitKey) return
-    const { routes, from, to, padding } = propsRef.current
+    const { routes, waypoints, padding } = propsRef.current
     const pts: LngLat[] = Object.values(routes).flatMap((r) => [
       [r!.bbox[0], r!.bbox[1]] as LngLat,
       [r!.bbox[2], r!.bbox[3]] as LngLat,
     ])
-    if (from) pts.push(from)
-    if (to) pts.push(to)
+    for (const w of waypoints) pts.push(w.coord)
     if (pts.length === 1) {
       map.panTo(toLL(pts[0]))
       map.setZoom(Math.max(map.getZoom() ?? 14, 14))
@@ -112,33 +111,50 @@ function Overlay(props: MapViewProps) {
       {props.routes[props.activeMode] && (
         <AnimatedRoute route={props.routes[props.activeMode]!} dark={props.dark} />
       )}
-      {(['from', 'to'] as const).map((which) => {
-        const c = props[which]
-        if (!c) return null
-        return (
-          <AdvancedMarker
-            key={`${which}-${c.join(',')}`}
-            position={toLL(c)}
-            draggable
-            anchorLeft="-50%"
-            anchorTop="-100%"
-            onDragEnd={(e) => {
-              const ll = e.latLng
-              if (ll) props.onMarkerDrag(which, [ll.lng(), ll.lat()])
-            }}
-          >
-            <div className={`route-marker route-marker--${which} is-dropping`}>
-              <div className="route-marker__inner">
-                <div className="route-marker__pin">
-                  <span>{which === 'from' ? 'А' : 'Б'}</span>
-                </div>
-                <div className="route-marker__tip" />
+      {props.alternatives.map(({ idx, route }) => (
+        <Polyline
+          key={`alt-${idx}`}
+          path={route.geometry.map(toLL)}
+          strokeColor="#8a94a6"
+          strokeOpacity={0.9}
+          strokeWeight={7}
+          zIndex={0}
+          clickable
+          onClick={() => props.onSelectAlternative(idx)}
+        />
+      ))}
+      {props.waypoints.map((wp) => (
+        <AdvancedMarker
+          key={`${wp.id}-${wp.coord.join(',')}`}
+          position={toLL(wp.coord)}
+          draggable
+          anchorLeft="-50%"
+          anchorTop="-100%"
+          onDragEnd={(e) => {
+            const ll = e.latLng
+            if (ll) props.onMarkerDrag(wp.id, [ll.lng(), ll.lat()])
+          }}
+        >
+          <div className={`route-marker route-marker--${wp.kind} is-dropping`}>
+            <div className="route-marker__inner">
+              <div className="route-marker__pin">
+                <span>{wp.label}</span>
               </div>
-              <div className="route-marker__shadow" />
+              <div className="route-marker__tip" />
             </div>
-          </AdvancedMarker>
-        )
-      })}
+            <div className="route-marker__shadow" />
+          </div>
+        </AdvancedMarker>
+      ))}
+      {props.me && (
+        <AdvancedMarker position={toLL(props.me.coord)} anchorLeft="-50%" anchorTop="-50%" zIndex={5}>
+          <div className={'me-marker' + (props.me.heading !== null ? ' has-heading' : '')}>
+            <div className="me-marker__cone" style={{ transform: `rotate(${props.me.heading ?? 0}deg)` }} />
+            <div className="me-marker__pulse" />
+            <div className="me-marker__dot" />
+          </div>
+        </AdvancedMarker>
+      )}
     </>
   )
 }

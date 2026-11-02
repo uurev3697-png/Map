@@ -1,7 +1,7 @@
 import { request, ServiceError } from '../errors'
-import { computeBBox, type LngLat, type Route, type TravelMode } from '../types'
+import { computeBBox, type LngLat, type Route, type RouteStep, type TravelMode } from '../types'
 import { osrmInstruction, osrmKind, type OsrmManeuver } from './osrmInstructions'
-import type { RoutingProvider } from './types'
+import type { RouteOptions, RoutingProvider } from './types'
 
 /**
  * Публичные серверы OSRM от FOSSGIS: https://routing.openstreetmap.de
@@ -9,6 +9,7 @@ import type { RoutingProvider } from './types'
  */
 const ENDPOINTS: Record<TravelMode, string> = {
   car: 'https://routing.openstreetmap.de/routed-car/route/v1/driving',
+  bike: 'https://routing.openstreetmap.de/routed-bike/route/v1/bike',
   foot: 'https://routing.openstreetmap.de/routed-foot/route/v1/foot',
 }
 
@@ -29,10 +30,12 @@ export class OsrmProvider implements RoutingProvider {
   readonly id = 'osrm'
   readonly name = 'OSRM (FOSSGIS)'
 
-  async route(mode: TravelMode, from: LngLat, to: LngLat, signal?: AbortSignal): Promise<Route> {
-    const coords = `${from[0]},${from[1]};${to[0]},${to[1]}`
-    const url = `${ENDPOINTS[mode]}/${coords}?overview=full&geometries=geojson&steps=true`
-    const data = await request<OsrmResponse>(url, { signal }, (status, body) => {
+  async route(mode: TravelMode, points: LngLat[], opts: RouteOptions = {}): Promise<Route[]> {
+    const coords = points.map((p) => `${p[0]},${p[1]}`).join(';')
+    const params = new URLSearchParams({ overview: 'full', geometries: 'geojson', steps: 'true' })
+    // OSRM отдаёт альтернативы только для маршрута из 2 точек
+    if (opts.alternatives && points.length === 2) params.set('alternatives', '3')
+    const data = await request<OsrmResponse>(`${ENDPOINTS[mode]}/${coords}?${params}`, { signal: opts.signal }, (status, body) => {
       const code = (body as OsrmResponse | null)?.code
       if (code === 'NoRoute' || code === 'NoSegment') return new ServiceError('not-found')
       if (status === 429) return new ServiceError('rate-limit')
@@ -40,31 +43,36 @@ export class OsrmProvider implements RoutingProvider {
     })
 
     if (data.code !== 'Ok' || !data.routes?.length) throw new ServiceError('not-found')
-    const r = data.routes[0]
-    const geometry = r.geometry.coordinates.map(([x, y]) => [x, y] as LngLat)
-    const steps = r.legs.flatMap((leg) =>
-      leg.steps
-        .filter((s, i, arr) => s.distance > 0 || i === 0 || i === arr.length - 1)
-        .map((s) => {
-          const name = s.name || s.ref || ''
-          return {
-            instruction: osrmInstruction(s.maneuver, name),
-            distance: s.distance,
-            duration: s.duration,
-            kind: osrmKind(s.maneuver),
-            name: name || undefined,
-            location: s.maneuver.location,
-          }
-        }),
-    )
-    return {
-      mode,
-      provider: this.name,
-      distance: r.distance,
-      duration: r.duration,
-      geometry,
-      steps,
-      bbox: computeBBox(geometry),
-    }
+    return data.routes.map((r) => {
+      const geometry = r.geometry.coordinates.map(([x, y]) => [x, y] as LngLat)
+      const lastLeg = r.legs.length - 1
+      const steps: RouteStep[] = r.legs.flatMap((leg, li) =>
+        leg.steps
+          .filter((s, i, arr) => s.distance > 0 || i === 0 || i === arr.length - 1)
+          // У промежуточных отрезков «старт» дублирует «прибытие» предыдущего — убираем
+          .filter((s) => !(li > 0 && s.maneuver.type === 'depart'))
+          .map((s) => {
+            const name = s.name || s.ref || ''
+            const intermediate = s.maneuver.type === 'arrive' && li < lastLeg
+            return {
+              instruction: intermediate ? `Промежуточная точка ${li + 1}` : osrmInstruction(s.maneuver, name),
+              distance: s.distance,
+              duration: s.duration,
+              kind: intermediate ? 'waypoint' : osrmKind(s.maneuver),
+              name: intermediate ? undefined : name || undefined,
+              location: s.maneuver.location,
+            }
+          }),
+      )
+      return {
+        mode,
+        provider: this.name,
+        distance: r.distance,
+        duration: r.duration,
+        geometry,
+        steps,
+        bbox: computeBBox(geometry),
+      }
+    })
   }
 }
