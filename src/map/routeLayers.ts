@@ -20,9 +20,10 @@ function hexToRgba(hex: string, a: number) {
 
 /** Градиент вдоль линии, «проявленный» до доли t (0..1) — так рисуется анимация. */
 function gradient(c1: string, c2: string, t: number): ExpressionSpecification {
-  if (t >= 1) return ['interpolate', ['linear'], ['line-progress'], 0, c1, 1, c2]
+  if (t >= 0.999) return ['interpolate', ['linear'], ['line-progress'], 0, c1, 1, c2]
   const p = Math.max(0.0001, t)
-  return ['interpolate', ['linear'], ['line-progress'], 0, c1, p, c2, Math.min(1, p + 0.0001), CLEAR, 1, CLEAR]
+  // остановки должны строго возрастать: p < p + ε < 1
+  return ['interpolate', ['linear'], ['line-progress'], 0, c1, p, c2, p + 0.0005, CLEAR, 1, CLEAR]
 }
 
 function firstSymbolLayer(map: MlMap): string | undefined {

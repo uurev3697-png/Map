@@ -150,13 +150,15 @@ export function useRoutePlanner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key])
 
+  const refit = useCallback(() => setFitKey((k) => (k ? k.replace(/#\d+$/, '') + '#' + Date.now() : k)), [])
+
   return {
     points,
     routes,
     activeMode,
     setActiveMode,
     fitKey,
-    refit: () => setFitKey((k) => k.replace(/#\d+$/, '') + '#' + Date.now()),
+    refit,
     setPoint,
     setPointFromCoord,
     swap,

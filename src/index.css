@@ -274,6 +274,11 @@ body {
   font-family: var(--font-sans);
   font-size: 10px;
 }
+@media (max-width: 767px) {
+  .maplibregl-ctrl-scale {
+    display: none;
+  }
+}
 .maplibregl-ctrl-bottom-right {
   bottom: var(--ctrl-bottom, 0px);
   right: var(--ctrl-right, 0px);

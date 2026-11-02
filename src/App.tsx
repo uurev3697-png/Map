@@ -74,13 +74,30 @@ export default function App() {
     [points.from, planner],
   )
 
+  const skipRefit = useRef(false)
   const onStep = useCallback(
     (coord: LngLat) => {
       setFocus({ coord, key: Date.now() })
-      if (isMobile) setSnap('peek')
+      if (isMobile) {
+        skipRefit.current = true
+        setSnap('peek')
+      }
     },
     [isMobile],
   )
+
+  // Шторка поменяла высоту — заново вписываем маршрут в видимую часть карты
+  const { refit } = planner
+  useEffect(() => {
+    if (!isMobile || !hasRoute) return
+    if (skipRefit.current) {
+      skipRefit.current = false
+      return
+    }
+    const t = setTimeout(refit, 50)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sheetH])
 
   const mapProps = {
     from: points.from?.coord ?? null,
@@ -136,7 +153,7 @@ export default function App() {
           initial={{ opacity: 0, x: 16 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ delay: 0.25, duration: 0.5 }}
-          className="absolute right-4 bottom-12 z-20"
+          className="absolute right-4 bottom-16 z-20"
         >
           <ZoomControls
             onIn={() => apiRef.current?.zoomIn()}

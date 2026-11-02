@@ -1,12 +1,17 @@
 import * as maplibregl from 'maplibre-gl'
 import type { Map as MlMap, MapMouseEvent, Marker } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
+// MapLibre v6 ищет воркер относительно своего модуля, а после бандлинга Vite
+// этот путь ломается — явно отдаём URL воркера как ассет.
+import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url'
 import { useEffect, useRef, useState } from 'react'
 import type { LngLat } from '../services/types'
 import { createMarkerElement, replayMarker } from './markers'
 import { animateActive, ensureRouteLayers, paintActive, setRouteData } from './routeLayers'
 import { styleFor, type LayerId } from './styles'
 import type { MapViewProps } from './types'
+
+maplibregl.setWorkerUrl(workerUrl)
 
 const START_CENTER: LngLat = [37.6176, 55.7558] // Москва
 const START_ZOOM = 11
@@ -38,6 +43,7 @@ export default function MapView(props: Props) {
     map.addControl(new maplibregl.ScaleControl({ unit: 'metric' }), 'bottom-right')
 
     map.on('style.load', () => {
+      localizeLabels(map)
       ensureRouteLayers(map)
       setStyleReady((n) => n + 1)
       setFading(false)
@@ -170,13 +176,24 @@ export default function MapView(props: Props) {
 
   return (
     <div className="absolute inset-0">
-      <div ref={containerRef} className="absolute inset-0" />
+      {/* inline-стиль: CSS MapLibre (.maplibregl-map { position: relative }) перебил бы класс Tailwind */}
+      <div ref={containerRef} style={{ position: 'absolute', inset: 0 }} />
       <div
         className="pointer-events-none absolute inset-0 bg-[var(--bg)] transition-opacity duration-300"
         style={{ opacity: fading ? 0.55 : 0 }}
       />
     </div>
   )
+}
+
+/** Подписи на русском: name:ru → name (вместо двуязычных «Moscow Москва»). */
+function localizeLabels(map: MlMap) {
+  for (const layer of map.getStyle().layers ?? []) {
+    if (layer.type !== 'symbol') continue
+    const tf = map.getLayoutProperty(layer.id, 'text-field')
+    if (!tf || !JSON.stringify(tf).includes('name')) continue
+    map.setLayoutProperty(layer.id, 'text-field', ['coalesce', ['get', 'name:ru'], ['get', 'name']])
+  }
 }
 
 function pad(p: MapViewProps['padding'], extra: number) {
