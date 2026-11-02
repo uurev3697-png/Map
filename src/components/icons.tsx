@@ -85,3 +85,10 @@ export function ManeuverIcon({ kind, className = 'size-[18px]' }: { kind: Maneuv
     </Svg>
   )
 }
+
+export const IconSnowflake = (p: P) => (
+  <Svg {...p}>
+    <path d="M12 2v20M4.2 6.5l15.6 9M4.2 17.5l15.6-9" />
+    <path d="m9.5 3.5 2.5 2 2.5-2M9.5 20.5l2.5-2 2.5 2M3.6 9.9l3.2-.6-1-3M18.2 17.7l-1-3 3.2-.6M3.6 14.1l3.2.6-1 3M18.2 6.3l-1 3 3.2.6" />
+  </Svg>
+)

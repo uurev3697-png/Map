@@ -21,6 +21,7 @@
   --shadow: 0 1px 1px rgba(15, 23, 42, 0.04), 0 8px 24px -6px rgba(15, 23, 42, 0.14),
     0 24px 60px -12px rgba(15, 23, 42, 0.18);
   --ring: rgba(99, 102, 241, 0.35);
+  --snow: #ffffff;
   --a: #6366f1;
   --b: #f43f5e;
   color-scheme: light;
@@ -40,6 +41,7 @@
   --hover: rgba(255, 255, 255, 0.07);
   --shadow: 0 1px 1px rgba(0, 0, 0, 0.3), 0 8px 24px -6px rgba(0, 0, 0, 0.5), 0 24px 60px -12px rgba(0, 0, 0, 0.6);
   --ring: rgba(129, 140, 248, 0.45);
+  --snow: #e8f0fa;
   color-scheme: dark;
 }
 
@@ -251,6 +253,46 @@ body {
   100% {
     transform: scale(1.8);
     opacity: 0;
+  }
+}
+
+/* ===== Зимний режим: снежные шапочки на маркерах ===== */
+.route-marker__pin {
+  position: relative;
+}
+.winter .route-marker__pin::before {
+  content: '';
+  position: absolute;
+  top: -6px;
+  left: 3px;
+  right: 3px;
+  height: 11px;
+  border-radius: 10px 10px 7px 7px;
+  background: var(--snow);
+  box-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.25),
+    inset 0 -2px 2px rgba(148, 178, 212, 0.35);
+  animation: snow-cap 0.5s 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+.winter .route-marker__pin::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 9px;
+  width: 5px;
+  height: 7px;
+  border-radius: 0 0 4px 4px;
+  background: var(--snow);
+  animation: snow-cap 0.5s 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+@keyframes snow-cap {
+  from {
+    transform: translateY(-6px) scale(0.6);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
   }
 }
 

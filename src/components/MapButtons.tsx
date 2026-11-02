@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import type { ReactNode } from 'react'
-import { IconMinus, IconMoon, IconPlus, IconRoute, IconSun } from './icons'
+import { IconMinus, IconMoon, IconPlus, IconRoute, IconSnowflake, IconSun } from './icons'
 
 export function ThemeToggle({ dark, onToggle }: { dark: boolean; onToggle(): void }) {
   return (
@@ -22,6 +22,26 @@ export function ThemeToggle({ dark, onToggle }: { dark: boolean; onToggle(): voi
           {dark ? <IconMoon /> : <IconSun />}
         </motion.span>
       </AnimatePresence>
+    </motion.button>
+  )
+}
+
+export function WinterToggle({ on, onToggle }: { on: boolean; onToggle(): void }) {
+  return (
+    <motion.button
+      whileTap={{ scale: 0.92 }}
+      onClick={onToggle}
+      aria-pressed={on}
+      className={
+        'glass grid size-11 place-items-center overflow-hidden rounded-2xl transition-colors ' +
+        (on ? '!bg-sky-500 text-white !border-sky-400/60 shadow-sky-500/30' : 'hover:text-sky-500')
+      }
+      aria-label={on ? 'Выключить зимний режим' : 'Включить зимний режим'}
+      title={on ? 'Зимний режим: вкл.' : 'Зимний режим'}
+    >
+      <motion.span animate={{ rotate: on ? 180 : 0 }} transition={{ type: 'spring', stiffness: 200, damping: 14 }}>
+        <IconSnowflake />
+      </motion.span>
     </motion.button>
   )
 }

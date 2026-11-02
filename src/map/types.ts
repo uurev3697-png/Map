@@ -22,6 +22,8 @@ export interface MapViewProps {
   onMarkerDrag: (which: 'from' | 'to', coord: LngLat) => void
   onCenterChange?: (center: LngLat) => void
   onReady?: (api: MapApi) => void
+  /** Не удалось загрузить стиль карты (нет сети) */
+  onStyleError?: () => void
 }
 
 export interface MapApi {

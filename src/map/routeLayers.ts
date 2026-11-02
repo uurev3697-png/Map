@@ -30,6 +30,14 @@ function firstSymbolLayer(map: MlMap): string | undefined {
   return map.getStyle().layers?.find((l) => l.type === 'symbol')?.id
 }
 
+// Ширина линий растёт с зумом: на обзорном масштабе тоньше, на улицах — заметно толще
+const w = (z12: number, z16: number, z18: number): ExpressionSpecification => [
+  'interpolate', ['linear'], ['zoom'], 10, z12 * 0.8, 12, z12, 16, z16, 18, z18,
+]
+
+const L_INACTIVE_CASING = 'route-inactive-casing'
+const L_FOOT_DOTS = 'route-active-foot-dots'
+
 /** Добавляет источники и слои маршрута (повторно — после смены стиля). */
 export function ensureRouteLayers(map: MlMap) {
   if (map.getSource(SRC_ALL)) return
@@ -37,42 +45,57 @@ export function ensureRouteLayers(map: MlMap) {
   map.addSource(SRC_ALL, { type: 'geojson', data: EMPTY })
   map.addSource(SRC_ACTIVE, { type: 'geojson', data: EMPTY, lineMetrics: true })
 
-  const inactiveBase = {
-    type: 'line' as const,
-    source: SRC_ALL,
-    layout: { 'line-join': 'round' as const, 'line-cap': 'round' as const },
-  }
+  const layout = { 'line-join': 'round' as const, 'line-cap': 'round' as const }
+  const inactive: ExpressionSpecification = ['!', ['get', 'active']]
+
+  // Неактивные маршруты: мягкая подложка + цветная линия (пешком — точками)
   map.addLayer(
     {
-      ...inactiveBase,
-      id: L_INACTIVE_CAR,
-      filter: ['all', ['==', ['get', 'mode'], 'car'], ['!', ['get', 'active']]],
-      paint: { 'line-color': ROUTE_COLORS.car.from, 'line-width': 6, 'line-opacity': 0.35 },
+      id: L_INACTIVE_CASING,
+      type: 'line',
+      source: SRC_ALL,
+      layout,
+      filter: inactive,
+      paint: { 'line-color': '#ffffff', 'line-width': w(8, 11, 15), 'line-opacity': 0.6 },
     },
     before,
   )
   map.addLayer(
     {
-      ...inactiveBase,
+      id: L_INACTIVE_CAR,
+      type: 'line',
+      source: SRC_ALL,
+      layout,
+      filter: ['all', ['==', ['get', 'mode'], 'car'], inactive],
+      paint: { 'line-color': ROUTE_COLORS.car.from, 'line-width': w(4, 6, 9), 'line-opacity': 0.55 },
+    },
+    before,
+  )
+  map.addLayer(
+    {
       id: L_INACTIVE_FOOT,
-      filter: ['all', ['==', ['get', 'mode'], 'foot'], ['!', ['get', 'active']]],
+      type: 'line',
+      source: SRC_ALL,
+      layout,
+      filter: ['all', ['==', ['get', 'mode'], 'foot'], inactive],
       paint: {
         'line-color': ROUTE_COLORS.foot.from,
-        'line-width': 5,
-        'line-opacity': 0.45,
-        'line-dasharray': [0.1, 2],
+        'line-width': w(4.5, 6.5, 9),
+        'line-opacity': 0.9,
+        'line-dasharray': [0.1, 1.8],
       },
     },
     before,
   )
-  const lineLayout = { 'line-join': 'round' as const, 'line-cap': 'round' as const }
+
+  // Активный маршрут: тень/свечение → контрастная обводка → градиентная линия
   map.addLayer(
     {
       id: L_GLOW,
       type: 'line',
       source: SRC_ACTIVE,
-      layout: lineLayout,
-      paint: { 'line-width': 18, 'line-blur': 10, 'line-gradient': gradient(CLEAR, CLEAR, 1) },
+      layout,
+      paint: { 'line-width': w(16, 22, 28), 'line-blur': 8, 'line-gradient': gradient(CLEAR, CLEAR, 1) },
     },
     before,
   )
@@ -81,8 +104,8 @@ export function ensureRouteLayers(map: MlMap) {
       id: L_CASING,
       type: 'line',
       source: SRC_ACTIVE,
-      layout: lineLayout,
-      paint: { 'line-width': 10, 'line-gradient': gradient(CLEAR, CLEAR, 1) },
+      layout,
+      paint: { 'line-width': w(10, 14, 19), 'line-gradient': gradient(CLEAR, CLEAR, 1) },
     },
     before,
   )
@@ -91,8 +114,25 @@ export function ensureRouteLayers(map: MlMap) {
       id: L_LINE,
       type: 'line',
       source: SRC_ACTIVE,
-      layout: lineLayout,
-      paint: { 'line-width': 6, 'line-gradient': gradient(CLEAR, CLEAR, 1) },
+      layout,
+      paint: { 'line-width': w(6.5, 9, 13), 'line-gradient': gradient(CLEAR, CLEAR, 1) },
+    },
+    before,
+  )
+  // Пешеходный маршрут: белый пунктир по центру линии (появляется после прорисовки)
+  map.addLayer(
+    {
+      id: L_FOOT_DOTS,
+      type: 'line',
+      source: SRC_ACTIVE,
+      layout,
+      paint: {
+        'line-color': '#ffffff',
+        'line-width': w(1.6, 2.6, 4),
+        'line-dasharray': [0.1, 2.4],
+        'line-opacity': 0,
+        'line-opacity-transition': { duration: 400, delay: 0 },
+      },
     },
     before,
   )
@@ -119,29 +159,39 @@ export function setRouteData(map: MlMap, routes: Partial<Record<TravelMode, Rout
   )
 }
 
-export function paintActive(map: MlMap, mode: TravelMode, t: number, darkCasing: boolean) {
+export function paintActive(map: MlMap, mode: TravelMode, t: number, night: boolean) {
   if (!map.getLayer(L_LINE)) return
   const c = ROUTE_COLORS[mode]
-  const casing = darkCasing ? 'rgba(11,13,18,0.9)' : 'rgba(255,255,255,0.95)'
-  map.setPaintProperty(L_GLOW, 'line-gradient', gradient(hexToRgba(c.from, 0.35), hexToRgba(c.to, 0.35), t))
+  const casing = night ? 'rgba(14,17,23,0.92)' : '#ffffff'
+  // Днём — тёмная мягкая тень (линия «отрывается» от карты), ночью — цветное свечение
+  const glow1 = night ? hexToRgba(c.from, 0.55) : 'rgba(15,23,42,0.30)'
+  const glow2 = night ? hexToRgba(c.to, 0.55) : 'rgba(15,23,42,0.30)'
+  map.setPaintProperty(L_GLOW, 'line-gradient', gradient(glow1, glow2, t))
   map.setPaintProperty(L_CASING, 'line-gradient', gradient(casing, casing, t))
   map.setPaintProperty(L_LINE, 'line-gradient', gradient(c.from, c.to, t))
+  // Пунктир — только на крупных масштабах, на обзорном он «дробит» линию
+  map.setPaintProperty(
+    L_FOOT_DOTS,
+    'line-opacity',
+    mode === 'foot' && t >= 0.999 ? ['interpolate', ['linear'], ['zoom'], 13.5, 0, 14.5, 0.95] : 0,
+  )
+  map.setPaintProperty(L_INACTIVE_CASING, 'line-color', night ? '#0e1117' : '#ffffff')
 }
 
 const ease = (x: number) => 1 - Math.pow(1 - x, 3)
 
 /** Анимирует «прорисовку» активной линии. Возвращает функцию отмены. */
-export function animateActive(map: MlMap, mode: TravelMode, darkCasing: boolean, duration = 1100) {
+export function animateActive(map: MlMap, mode: TravelMode, night: boolean, duration = 1100) {
   const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
   if (reduce) {
-    paintActive(map, mode, 1, darkCasing)
+    paintActive(map, mode, 1, night)
     return () => {}
   }
   let raf = 0
   const start = performance.now()
   const frame = (now: number) => {
     const x = Math.min(1, (now - start) / duration)
-    paintActive(map, mode, ease(x), darkCasing)
+    paintActive(map, mode, ease(x), night)
     if (x < 1) raf = requestAnimationFrame(frame)
   }
   raf = requestAnimationFrame(frame)

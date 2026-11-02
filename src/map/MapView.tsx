@@ -16,7 +16,10 @@ maplibregl.setWorkerUrl(workerUrl)
 const START_CENTER: LngLat = [37.6176, 55.7558] // Москва
 const START_ZOOM = 11
 
-type Props = MapViewProps & { layer: Exclude<LayerId, 'google'> }
+type Props = MapViewProps & { layer: Exclude<LayerId, 'google'>; winter: boolean }
+
+// Пустой стиль на время загрузки настоящего (он собирается асинхронно)
+const BLANK = { version: 8 as const, sources: {}, layers: [] }
 
 export default function MapView(props: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -27,13 +30,12 @@ export default function MapView(props: Props) {
   const cancelAnimRef = useRef<() => void>(() => {})
   const [styleReady, setStyleReady] = useState(0)
   const [fading, setFading] = useState(false)
-  const layerRef = useRef(props.layer)
 
   // Инициализация карты
   useEffect(() => {
     const map = new maplibregl.Map({
       container: containerRef.current!,
-      style: styleFor(props.layer),
+      style: BLANK,
       center: START_CENTER,
       zoom: START_ZOOM,
       attributionControl: { compact: true },
@@ -70,19 +72,35 @@ export default function MapView(props: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Смена слоя карты с мягким затуханием
+  // Стиль карты: слой + зимний режим. Первый раз — сразу, дальше — с мягким затуханием
+  const firstStyle = useRef(true)
   useEffect(() => {
     const map = mapRef.current
-    if (!map || layerRef.current === props.layer) return
-    layerRef.current = props.layer
-    setFading(true)
-    const t = setTimeout(() => map.setStyle(styleFor(props.layer)), 160)
-    return () => clearTimeout(t)
-  }, [props.layer])
+    if (!map) return
+    let cancelled = false
+    const first = firstStyle.current
+    firstStyle.current = false
+    if (!first) setFading(true)
+    const started = performance.now()
+    styleFor(props.layer, props.winter)
+      .then((style) => {
+        if (cancelled) return
+        const wait = first ? 0 : Math.max(0, 160 - (performance.now() - started))
+        setTimeout(() => !cancelled && map.setStyle(style, { diff: false }), wait)
+      })
+      .catch(() => {
+        if (cancelled) return
+        setFading(false)
+        propsRef.current.onStyleError?.()
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [props.layer, props.winter])
 
   // Данные маршрутов + анимация активной линии
   const activeRoute = props.routes[props.activeMode]
-  const darkCasing = props.layer === 'dark'
+  const darkCasing = props.layer !== 'osm'
   const lastAnimated = useRef<unknown>(null)
   useEffect(() => {
     const map = mapRef.current
