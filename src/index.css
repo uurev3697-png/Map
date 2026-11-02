@@ -21,6 +21,7 @@
   --shadow: 0 1px 1px rgba(15, 23, 42, 0.04), 0 8px 24px -6px rgba(15, 23, 42, 0.14),
     0 24px 60px -12px rgba(15, 23, 42, 0.18);
   --ring: rgba(99, 102, 241, 0.35);
+  --snow: #ffffff;
   --a: #6366f1;
   --b: #f43f5e;
   color-scheme: light;
@@ -40,6 +41,7 @@
   --hover: rgba(255, 255, 255, 0.07);
   --shadow: 0 1px 1px rgba(0, 0, 0, 0.3), 0 8px 24px -6px rgba(0, 0, 0, 0.5), 0 24px 60px -12px rgba(0, 0, 0, 0.6);
   --ring: rgba(129, 140, 248, 0.45);
+  --snow: #e8f0fa;
   color-scheme: dark;
 }
 
@@ -142,6 +144,15 @@ body {
 .route-marker--to {
   --c1: #fb7185;
   --c2: #e11d48;
+}
+.route-marker--stop {
+  --c1: #94a3b8;
+  --c2: #475569;
+}
+.route-marker--stop .route-marker__pin {
+  width: 32px;
+  height: 32px;
+  font-size: 14px;
 }
 .route-marker__inner {
   position: absolute;
@@ -250,6 +261,140 @@ body {
   }
   100% {
     transform: scale(1.8);
+    opacity: 0;
+  }
+}
+
+/* ===== Зимний режим: снежные шапочки на маркерах ===== */
+.route-marker__pin {
+  position: relative;
+}
+.winter .route-marker__pin::before {
+  content: '';
+  position: absolute;
+  top: -6px;
+  left: 3px;
+  right: 3px;
+  height: 11px;
+  border-radius: 10px 10px 7px 7px;
+  background: var(--snow);
+  box-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.25),
+    inset 0 -2px 2px rgba(148, 178, 212, 0.35);
+  animation: snow-cap 0.5s 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+.winter .route-marker__pin::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 9px;
+  width: 5px;
+  height: 7px;
+  border-radius: 0 0 4px 4px;
+  background: var(--snow);
+  animation: snow-cap 0.5s 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+@keyframes snow-cap {
+  from {
+    transform: translateY(-6px) scale(0.6);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+/* ===== Новогодняя ночь: ёлочка вместо «Б» ===== */
+.newyear-eve .route-marker--to {
+  --c1: #4ade80;
+  --c2: #15803d;
+}
+.newyear-eve .route-marker--to .route-marker__pin span {
+  font-size: 0;
+}
+.newyear-eve .route-marker--to .route-marker__pin span::before {
+  content: '🎄';
+  font-size: 20px;
+}
+
+/* ===== Гирлянда ===== */
+.garland-bulb {
+  width: 7px;
+  height: 10px;
+  margin-left: -3.5px;
+  border-radius: 50% 50% 45% 45%;
+  background: var(--c);
+  box-shadow: 0 0 6px 1px var(--c);
+  animation: bulb 1.5s ease-in-out infinite;
+}
+.garland-bulb::before {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: 2px;
+  width: 3px;
+  height: 3px;
+  border-radius: 1px;
+  background: #4b5563;
+}
+@keyframes bulb {
+  0%,
+  100% {
+    opacity: 1;
+    filter: brightness(1.15);
+  }
+  50% {
+    opacity: 0.35;
+    filter: brightness(0.7);
+    box-shadow: 0 0 2px 0 var(--c);
+  }
+}
+
+/* ===== «Я здесь» ===== */
+.me-marker {
+  position: relative;
+  width: 22px;
+  height: 22px;
+}
+.me-marker__dot {
+  position: absolute;
+  inset: 3px;
+  border-radius: 50%;
+  background: #0ea5e9;
+  border: 3px solid #fff;
+  box-shadow: 0 2px 6px rgba(2, 132, 199, 0.5);
+}
+.me-marker__pulse {
+  position: absolute;
+  inset: -10px;
+  border-radius: 50%;
+  background: rgba(14, 165, 233, 0.25);
+  animation: me-pulse 2s ease-out infinite;
+}
+.me-marker__cone {
+  position: absolute;
+  left: 50%;
+  bottom: 50%;
+  width: 56px;
+  height: 56px;
+  margin-left: -28px;
+  transform-origin: 50% 100%;
+  background: radial-gradient(circle at 50% 100%, rgba(14, 165, 233, 0.45), rgba(14, 165, 233, 0) 70%);
+  clip-path: polygon(50% 100%, 18% 0, 82% 0);
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+.me-marker.has-heading .me-marker__cone {
+  opacity: 1;
+}
+@keyframes me-pulse {
+  0% {
+    transform: scale(0.4);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1.4);
     opacity: 0;
   }
 }

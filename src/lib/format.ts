@@ -27,3 +27,27 @@ export function formatArrival(seconds: number): string {
 export function formatCoord([lng, lat]: [number, number]): string {
   return `${lat.toFixed(5)}, ${lng.toFixed(5)}`
 }
+
+/** "HH:MM" → Date сегодня (или завтра, если время уже прошло) */
+function atTime(hhmm: string): Date {
+  const [h, m] = hhmm.split(':').map(Number)
+  const d = new Date()
+  d.setHours(h || 0, m || 0, 0, 0)
+  if (d.getTime() < Date.now() - 60_000) d.setDate(d.getDate() + 1)
+  return d
+}
+const hm = (d: Date) => d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
+
+export type TimeSpec = { kind: 'now' } | { kind: 'depart' | 'arrive'; time: string }
+
+/** Подпись времени для карточки: «до 14:35» / «прибытие 14:35» / «выход в 13:20» */
+export function timeHint(seconds: number, t: TimeSpec, mode: 'foot' | 'bike' | 'car'): string {
+  if (t.kind === 'now') return `до ${formatArrival(seconds)}`
+  if (t.kind === 'depart') return `прибытие ${hm(new Date(atTime(t.time).getTime() + seconds * 1000))}`
+  const verb = mode === 'car' ? 'выезд' : 'выход'
+  return `${verb} в ${hm(new Date(atTime(t.time).getTime() - seconds * 1000))}`
+}
+
+export function nowHHMM(offsetMin = 0): string {
+  return hm(new Date(Date.now() + offsetMin * 60_000))
+}

@@ -1,7 +1,9 @@
 /** [долгота, широта] — порядок как в GeoJSON / MapLibre */
 export type LngLat = [number, number]
 
-export type TravelMode = 'foot' | 'car'
+export type TravelMode = 'foot' | 'bike' | 'car'
+
+export const TRAVEL_MODES: TravelMode[] = ['foot', 'bike', 'car']
 
 export type ManeuverKind =
   | 'depart'
@@ -17,6 +19,7 @@ export type ManeuverKind =
   | 'roundabout'
   | 'merge'
   | 'fork'
+  | 'waypoint'
   | 'other'
 
 export interface RouteStep {
