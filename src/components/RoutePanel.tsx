@@ -3,13 +3,15 @@ import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { getCurrentPosition } from '../hooks/geolocation'
 import { pick, type Planner, type Which } from '../hooks/useRoutePlanner'
 import { useSuggestions } from '../hooks/useSuggestions'
-import { addToHistory } from '../lib/places'
+import { addToHistory, type QuickKind } from '../lib/places'
 import { isAbort } from '../services/errors'
 import type { LngLat, Place } from '../services/types'
 import { getWeather, type Weather } from '../services/weather'
 import { Directions } from './Directions'
 import { ElevationProfile } from './ElevationProfile'
 import { IconCar, IconLocate, IconPin, IconRoute, IconSearch } from './icons'
+import { PlaceSetupDialog } from './PlaceSetupDialog'
+import { QuickPlaces } from './QuickPlaces'
 import { RouteActions } from './RouteActions'
 import { RouteCards } from './RouteCards'
 import { Suggestions } from './Suggestions'
@@ -60,6 +62,8 @@ export function RoutePanel({ planner, near, onStep, onEditingChange, compactHead
   const [highlight, setHighlight] = useState(-1)
   const [locating, setLocating] = useState<Which | null>(null)
   const fieldsRef = useRef<WaypointFieldsHandle>(null)
+  // Окно «Указать адрес Дома/Работы» и откуда его открыли (поле или пустая панель)
+  const [setup, setSetup] = useState<{ kind: QuickKind; origin: Which | 'empty' } | null>(null)
   // Актуальные подписи точек (обновляются сразу, до перерисовки) — для onBlur
   const labelsRef = useRef<Record<Which, string>>({})
   labelsRef.current = Object.fromEntries(slots.map((s) => [s.id, s.wp?.label ?? '']))
@@ -111,6 +115,30 @@ export function RoutePanel({ planner, near, onStep, onEditingChange, compactHead
       toast.show({ kind: 'error', title: 'Геолокация недоступна', message: (e as Error).message })
     } finally {
       setLocating(null)
+    }
+  }
+
+  /** «Домой» / «На работу»: место — в конечную точку, старт — моё местоположение (если не задан) */
+  const goTo = async (place: Place) => {
+    const last = slots[slots.length - 1]
+    const first = slots[0]
+    planner.setPoint(last.id, { coord: place.coord, label: place.name, sublabel: place.description })
+    labelsRef.current[last.id] = place.name
+    setTexts((t) => ({ ...t, [last.id]: place.name }))
+    if (!first.wp) {
+      try {
+        setLocating(first.id)
+        const coord = await getCurrentPosition()
+        planner.setPointFromCoord(first.id, coord, 'Моё местоположение')
+        labelsRef.current[first.id] = 'Моё местоположение'
+        setTexts((t) => ({ ...t, [first.id]: 'Моё местоположение' }))
+      } catch {
+        // Без геолокации — просим указать старт вручную
+        setEditing(first.id)
+        fieldsRef.current?.focus(first.id)
+      } finally {
+        setLocating(null)
+      }
     }
   }
 
@@ -215,6 +243,7 @@ export function RoutePanel({ planner, near, onStep, onEditingChange, compactHead
                 onHover={setHighlight}
                 onPick={(p) => editing && pickPlace(editing, p)}
                 onLocate={() => editing && locate(editing)}
+                onSetupQuick={(kind) => editing && setSetup({ kind, origin: editing })}
               />
             </motion.div>
           )}
@@ -255,12 +284,32 @@ export function RoutePanel({ planner, near, onStep, onEditingChange, compactHead
             </motion.div>
           )}
           {view === 'empty' && (
-            <motion.div key="empty" {...fade}>
+            <motion.div key="empty" {...fade} className="space-y-3">
+              <div>
+                <p className="mb-2 px-1 text-[11px] font-bold tracking-wide text-[var(--subtle)] uppercase">Мои места</p>
+                <QuickPlaces size="lg" onUse={goTo} onSetup={(kind) => setSetup({ kind, origin: 'empty' })} />
+              </div>
               <EmptyHint step={filledCount ? 2 : 1} />
             </motion.div>
           )}
         </AnimatePresence>
       </div>
+      <PlaceSetupDialog
+        kind={setup?.kind ?? null}
+        near={near}
+        routePoints={slots.flatMap((sl) =>
+          sl.wp && !sl.wp.resolving
+            ? [{ id: sl.id, name: sl.wp.label, description: sl.wp.sublabel ?? '', coord: sl.wp.coord }]
+            : [],
+        )}
+        onClose={() => setSetup(null)}
+        onSaved={(_, place) => {
+          const origin = setup?.origin
+          if (!origin) return
+          if (origin === 'empty') void goTo(place)
+          else if (slots.some((sl) => sl.id === origin)) pickPlace(origin, place)
+        }}
+      />
     </div>
   )
 }

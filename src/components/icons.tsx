@@ -153,3 +153,29 @@ export const IconLink = (p: P) => (
     <path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1" />
   </Svg>
 )
+
+export const IconHome = (p: P) => (
+  <Svg {...p}>
+    <path d="M3.5 10.5 12 3.5l8.5 7" />
+    <path d="M5.5 9v10.5a1 1 0 0 0 1 1H10v-6h4v6h3.5a1 1 0 0 0 1-1V9" />
+  </Svg>
+)
+export const IconBriefcase = (p: P) => (
+  <Svg {...p}>
+    <rect x="3" y="7" width="18" height="13" rx="2.5" />
+    <path d="M9 7V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V7M3 12.5h18" />
+  </Svg>
+)
+export const IconPencil = (p: P) => <Svg {...p}><path d="M4 20h4L19 9l-4-4L4 16v4ZM13.5 6.5l4 4" /></Svg>
+export const IconRuler = (p: P) => (
+  <Svg {...p}>
+    <path d="M3.5 16.5 16.5 3.5l4 4-13 13-4-4Z" />
+    <path d="m7 13 2 2M10 10l1.5 1.5M13 7l2 2" />
+  </Svg>
+)
+export const IconUndo = (p: P) => <Svg {...p}><path d="M9 14 4 9l5-5" /><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" /></Svg>
+export const IconTrash = (p: P) => (
+  <Svg {...p}>
+    <path d="M4 7h16M9.5 7V4.5h5V7M6.5 7l1 13h9l1-13" />
+  </Svg>
+)

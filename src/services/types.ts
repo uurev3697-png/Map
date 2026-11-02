@@ -52,6 +52,8 @@ export interface Place {
   name: string
   /** Вторая строка: город, регион, страна */
   description: string
+  /** Населённый пункт (для подписей вроде «Москва») */
+  city?: string
   coord: LngLat
 }
 

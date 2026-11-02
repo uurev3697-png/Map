@@ -46,3 +46,27 @@ export function toggleFavorite(p: Place): boolean {
   write(FAVORITES, [p, ...list].slice(0, 20))
   return true
 }
+
+// ===== Дом и Работа =====
+export type QuickKind = 'home' | 'work'
+const QUICK_KEY: Record<QuickKind, string> = { home: 'place-home', work: 'place-work' }
+export const QUICK_LABEL: Record<QuickKind, string> = { home: 'Дом', work: 'Работа' }
+
+export function getQuick(kind: QuickKind): Place | null {
+  try {
+    const v = JSON.parse(localStorage.getItem(QUICK_KEY[kind]) || 'null')
+    return v && Array.isArray(v.coord) ? v : null
+  } catch {
+    return null
+  }
+}
+
+export function setQuick(kind: QuickKind, p: Place | null) {
+  try {
+    if (p) localStorage.setItem(QUICK_KEY[kind], JSON.stringify(p))
+    else localStorage.removeItem(QUICK_KEY[kind])
+  } catch {
+    /* приватный режим */
+  }
+  window.dispatchEvent(new Event('places-changed'))
+}
