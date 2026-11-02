@@ -7,6 +7,7 @@ import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url'
 import { useEffect, useRef, useState } from 'react'
 import type { LngLat } from '../services/types'
 import { flyAlongRoute } from './flyAlong'
+import { createRulerVertex, ensureRulerLayers, rulerDistances, setRulerData, updateRulerVertex } from './ruler'
 import { createMarkerElement, createMeElement, replayMarker, updateMarkerElement } from './markers'
 import { animateActive, ensureRouteLayers, L_ALT_HIT, paintActive, setRouteData } from './routeLayers'
 import { styleFor, type LayerId } from './styles'
@@ -27,6 +28,7 @@ export default function MapView(props: Props) {
   const mapRef = useRef<MlMap | null>(null)
   const markersRef = useRef(new Map<string, Marker>())
   const meRef = useRef<Marker | null>(null)
+  const rulerRef = useRef<Marker[]>([])
   const propsRef = useRef(props)
   propsRef.current = props
   const cancelAnimRef = useRef<() => void>(() => {})
@@ -49,10 +51,16 @@ export default function MapView(props: Props) {
     map.on('style.load', () => {
       localizeLabels(map)
       ensureRouteLayers(map)
+      ensureRulerLayers(map)
       setStyleReady((n) => n + 1)
       setFading(false)
     })
     map.on('click', (e: MapMouseEvent) => {
+      // Режим линейки: клики ставят точки измерения
+      if (propsRef.current.ruler.active) {
+        propsRef.current.onRulerAdd([e.lngLat.lng, e.lngLat.lat])
+        return
+      }
       // Клик по альтернативному маршруту — выбираем его, а не ставим точку
       const alt = map.getLayer(L_ALT_HIT) ? map.queryRenderedFeatures(e.point, { layers: [L_ALT_HIT] })[0] : undefined
       if (alt) {
@@ -62,6 +70,10 @@ export default function MapView(props: Props) {
       propsRef.current.onMapClick([e.lngLat.lng, e.lngLat.lat])
     })
     map.on('mousemove', (e: MapMouseEvent) => {
+      if (propsRef.current.ruler.active) {
+        map.getCanvas().style.cursor = 'copy'
+        return
+      }
       const over = map.getLayer(L_ALT_HIT) && map.queryRenderedFeatures(e.point, { layers: [L_ALT_HIT] }).length > 0
       map.getCanvas().style.cursor = over ? 'pointer' : 'crosshair'
     })
@@ -84,6 +96,7 @@ export default function MapView(props: Props) {
       mapRef.current = null
       markersRef.current.clear()
       meRef.current = null
+      rulerRef.current = []
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -170,6 +183,34 @@ export default function MapView(props: Props) {
       }
     }
   }, [props.waypoints])
+
+  // Линейка: линия + перетаскиваемые точки с накопленным расстоянием
+  const rulerPts = props.ruler.points
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !map.getSource('ruler')) return
+    setRulerData(map, rulerPts)
+    const markers = rulerRef.current
+    while (markers.length > rulerPts.length) markers.pop()!.remove()
+    const dist = rulerDistances(rulerPts)
+    rulerPts.forEach((pt, i) => {
+      let m = markers[i]
+      if (!m) {
+        const el = createRulerVertex()
+        el.addEventListener('click', (e) => e.stopPropagation())
+        m = new maplibregl.Marker({ element: el, draggable: true }).setLngLat(pt).addTo(map)
+        m.on('drag', () => {
+          const ll = m!.getLngLat()
+          propsRef.current.onRulerMove(i, [ll.lng, ll.lat])
+        })
+        markers[i] = m
+      } else {
+        const cur = m.getLngLat()
+        if (cur.lng !== pt[0] || cur.lat !== pt[1]) m.setLngLat(pt)
+      }
+      updateRulerVertex(m.getElement(), i, dist[i], i === rulerPts.length - 1)
+    })
+  }, [rulerPts, styleReady])
 
   // «Я здесь»
   const me = props.me

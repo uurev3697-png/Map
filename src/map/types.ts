@@ -38,6 +38,10 @@ export interface MapViewProps {
   me: MyLocation | null
   /** Наклон карты с 3D-зданиями */
   tilt3d: boolean
+  /** Линейка: режим измерения и её точки */
+  ruler: { active: boolean; points: LngLat[] }
+  onRulerAdd: (coord: LngLat) => void
+  onRulerMove: (index: number, coord: LngLat) => void
   onMapClick: (coord: LngLat) => void
   onMarkerDrag: (id: string, coord: LngLat) => void
   onSelectAlternative: (idx: number) => void

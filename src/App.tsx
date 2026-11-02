@@ -3,7 +3,9 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } fro
 import { BottomSheet, type Snap } from './components/BottomSheet'
 import { Garland } from './components/Garland'
 import { LayerSwitcher } from './components/LayerSwitcher'
-import { LocateButton, ThemeToggle, TiltToggle, WinterToggle, ZoomControls } from './components/MapButtons'
+import { LocateButton, RulerToggle, ThemeToggle, TiltToggle, WinterToggle, ZoomControls } from './components/MapButtons'
+import { RulerBar } from './components/RulerBar'
+import { WeatherWidget } from './components/WeatherWidget'
 import { RoutePanel } from './components/RoutePanel'
 import { SnowCap } from './components/SnowCap'
 import { Snowfall } from './components/Snowfall'
@@ -170,6 +172,29 @@ export default function App() {
     }
   }
 
+  // Если доступ к геолокации уже разрешён — сразу показываем «Я здесь» и погоду рядом
+  useEffect(() => {
+    navigator.permissions
+      ?.query({ name: 'geolocation' })
+      .then((st) => {
+        if (st.state === 'granted') startTracking().catch(() => {})
+      })
+      .catch(() => {})
+  }, [startTracking])
+
+  // ===== Линейка =====
+  const [ruler, setRuler] = useState<{ active: boolean; points: LngLat[] }>({ active: false, points: [] })
+  const toggleRuler = () => {
+    setRuler((r) => ({ active: !r.active, points: r.active ? [] : r.points }))
+    if (isMobile) setSnap('peek')
+  }
+  useEffect(() => {
+    if (!ruler.active) return
+    const esc = (e: KeyboardEvent) => e.key === 'Escape' && setRuler({ active: false, points: [] })
+    document.addEventListener('keydown', esc)
+    return () => document.removeEventListener('keydown', esc)
+  }, [ruler.active])
+
   // ===== 3D =====
   const [tilt3d, setTilt3d] = useState(false)
 
@@ -209,6 +234,10 @@ export default function App() {
     focus,
     me,
     tilt3d,
+    ruler,
+    onRulerAdd: (c: LngLat) => setRuler((r) => ({ ...r, points: [...r.points, c] })),
+    onRulerMove: (i: number, c: LngLat) =>
+      setRuler((r) => ({ ...r, points: r.points.map((p, j) => (j === i ? c : p)) })),
     onMapClick: planner.setNextFromCoord,
     onMarkerDrag: planner.setPointFromCoord,
     onSelectAlternative: (idx: number) => planner.setAlternative(activeMode, idx),
@@ -272,8 +301,40 @@ export default function App() {
         <ThemeToggle dark={dark} onToggle={toggle} />
         <WinterToggle on={winter} onToggle={toggleWinter} />
         {!isGoogle && <TiltToggle on={tilt3d} onToggle={() => setTilt3d((t) => !t)} />}
+        {!isGoogle && <RulerToggle on={ruler.active} onToggle={toggleRuler} />}
         <LocateButton active={!!me} busy={locating} onClick={locateMe} />
       </motion.div>
+
+      {/* Погода в моём местоположении */}
+      <motion.div
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.3, duration: 0.5 }}
+        className={'absolute z-20 ' + (isMobile ? 'top-3 left-3' : 'top-4 right-[76px]')}
+      >
+        <WeatherWidget me={me} busy={locating} onLocate={locateMe} align={isMobile ? 'left' : 'right'} />
+      </motion.div>
+
+      {/* Линейка */}
+      <AnimatePresence>
+        {ruler.active && (
+          <div
+            key="ruler"
+            className={
+              'absolute z-20 ' +
+              (isMobile ? 'top-[64px] right-[64px] left-3' : 'bottom-6 w-[min(440px,calc(100%-560px))] min-w-[340px]')
+            }
+            style={isMobile ? undefined : { left: `calc(${PANEL_W + 32}px + (100% - ${PANEL_W + 32}px - 80px) / 2)`, transform: 'translateX(-50%)' }}
+          >
+            <RulerBar
+              points={ruler.points}
+              onUndo={() => setRuler((r) => ({ ...r, points: r.points.slice(0, -1) }))}
+              onClear={() => setRuler((r) => ({ ...r, points: [] }))}
+              onClose={() => setRuler({ active: false, points: [] })}
+            />
+          </div>
+        )}
+      </AnimatePresence>
 
       {!isMobile && (
         <motion.div

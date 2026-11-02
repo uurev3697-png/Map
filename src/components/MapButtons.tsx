@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import type { ReactNode } from 'react'
-import { IconCube, IconMinus, IconMoon, IconNavigation, IconPlus, IconRoute, IconSnowflake, IconSun } from './icons'
+import { IconRuler, IconCube, IconMinus, IconMoon, IconNavigation, IconPlus, IconRoute, IconSnowflake, IconSun } from './icons'
 
 export function ThemeToggle({ dark, onToggle }: { dark: boolean; onToggle(): void }) {
   return (
@@ -62,6 +62,21 @@ export function TiltToggle({ on, onToggle }: { on: boolean; onToggle(): void }) 
         <IconCube className="size-[17px]" />
         <span className="mt-0.5 text-[9px] font-extrabold tracking-wide">3D</span>
       </span>
+    </motion.button>
+  )
+}
+
+export function RulerToggle({ on, onToggle }: { on: boolean; onToggle(): void }) {
+  return (
+    <motion.button
+      whileTap={{ scale: 0.92 }}
+      onClick={onToggle}
+      aria-pressed={on}
+      className={round + (on ? '!bg-indigo-500 text-white !border-indigo-400/60' : 'hover:text-indigo-500')}
+      aria-label={on ? 'Закрыть линейку' : 'Линейка'}
+      title={on ? 'Закрыть линейку' : 'Линейка — измерить расстояние'}
+    >
+      <IconRuler className="size-[18px]" />
     </motion.button>
   )
 }

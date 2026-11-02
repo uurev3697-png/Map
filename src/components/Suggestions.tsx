@@ -1,7 +1,8 @@
 import { motion } from 'framer-motion'
-import { useEffect, useState } from 'react'
 import { MIN_QUERY } from '../hooks/useSuggestions'
-import { getFavorites, getHistory, isFavorite, removeFromHistory, toggleFavorite } from '../lib/places'
+import { usePlaces } from '../hooks/usePlaces'
+import { isFavorite, removeFromHistory, toggleFavorite, type QuickKind } from '../lib/places'
+import { QuickPlaces } from './QuickPlaces'
 import type { Place } from '../services/types'
 import { IconClose, IconHistory, IconNavigation, IconPin, IconSearch, IconStar } from './icons'
 import { SuggestionSkeleton } from './Skeleton'
@@ -15,24 +16,10 @@ interface Props {
   onHover(i: number): void
   onPick(p: Place): void
   onLocate(): void
+  onSetupQuick(kind: QuickKind): void
 }
 
 const item = 'flex w-full items-center gap-3 rounded-2xl px-2.5 py-2.5 text-left transition-colors duration-150'
-
-/** Подписка на изменения истории/избранного (в т.ч. из других вкладок) */
-function usePlaces() {
-  const [v, setV] = useState(0)
-  useEffect(() => {
-    const on = () => setV((x) => x + 1)
-    window.addEventListener('places-changed', on)
-    window.addEventListener('storage', on)
-    return () => {
-      window.removeEventListener('places-changed', on)
-      window.removeEventListener('storage', on)
-    }
-  }, [])
-  return { favorites: getFavorites(), history: getHistory(), v }
-}
 
 function StarButton({ place }: { place: Place }) {
   const fav = isFavorite(place)
@@ -127,16 +114,10 @@ export function Suggestions(p: Props) {
 
       {short ? (
         <>
-          {favorites.length > 0 && (
-            <>
-              <p className="px-2.5 pt-1.5 pb-1 text-[11px] font-bold tracking-wide text-[var(--subtle)] uppercase">Избранное</p>
-              <ul>
-                {favorites.map((f, i) => (
-                  <PlaceRow key={'f' + f.id} place={f} icon="star" onPick={() => p.onPick(f)} delay={i * 0.02} extra={<StarButton place={f} />} />
-                ))}
-              </ul>
-            </>
-          )}
+          <p className="px-2.5 pt-1.5 pb-1.5 text-[11px] font-bold tracking-wide text-[var(--subtle)] uppercase">Мои места</p>
+          <div className="px-1.5 pb-1">
+            <QuickPlaces withFavorites onUse={(pl) => p.onPick(pl)} onSetup={p.onSetupQuick} />
+          </div>
           {recent.length > 0 && (
             <>
               <p className="px-2.5 pt-1.5 pb-1 text-[11px] font-bold tracking-wide text-[var(--subtle)] uppercase">Недавние</p>
@@ -168,10 +149,10 @@ export function Suggestions(p: Props) {
               </ul>
             </>
           )}
-          {!favorites.length && !recent.length && (
+          {!recent.length && (
             <div className="flex items-center gap-3 px-2.5 py-3 text-[13px] text-[var(--muted)]">
               <IconSearch className="size-4 shrink-0" />
-              Введите адрес или место — или просто нажмите на карту
+              Введите адрес или место — или просто нажмите на карту. Звёздочка ☆ у адреса добавляет его в избранное.
             </div>
           )}
         </>

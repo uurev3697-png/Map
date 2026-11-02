@@ -38,6 +38,7 @@ function toPlace(f: PhotonFeature): Place {
     name,
     description,
     coord: [f.geometry.coordinates[0], f.geometry.coordinates[1]],
+    city: p.city ?? p.locality ?? p.state,
   }
 }
 

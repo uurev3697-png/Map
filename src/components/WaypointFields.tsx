@@ -2,7 +2,9 @@ import { AnimatePresence, motion, Reorder, useDragControls } from 'framer-motion
 import { forwardRef, useImperativeHandle, useRef, useState, type KeyboardEvent } from 'react'
 import { MAX_SLOTS, type Slot, type Which } from '../hooks/useRoutePlanner'
 import type { Weather } from '../services/weather'
-import { IconClose, IconGrip, IconLocate, IconPlus, IconSwap } from './icons'
+import { usePlaces } from '../hooks/usePlaces'
+import { isFavorite, toggleFavorite } from '../lib/places'
+import { IconClose, IconGrip, IconLocate, IconPlus, IconStar, IconSwap } from './icons'
 
 export interface FieldHandle {
   focus(): void
@@ -143,6 +145,9 @@ const Field = forwardRef<FieldHandle, FieldProps>(function Field(p, ref) {
               <IconClose className="size-4" />
             </button>
           )}
+          {p.slot.wp && !p.active && !p.slot.wp.resolving ? (
+            <FavButton wp={p.slot.wp} />
+          ) : (
           <button
             type="button"
             onMouseDown={(e) => e.preventDefault()}
@@ -154,11 +159,35 @@ const Field = forwardRef<FieldHandle, FieldProps>(function Field(p, ref) {
           >
             <IconLocate className={'size-[18px] ' + (p.locating ? 'animate-spin text-indigo-500' : '')} />
           </button>
+          )}
         </div>
       </div>
     </Reorder.Item>
   )
 })
+
+/** Звёздочка «в избранное» у заполненной точки */
+function FavButton({ wp }: { wp: NonNullable<Slot['wp']> }) {
+  usePlaces() // перерисовка при изменении избранного
+  const place = { id: `fav:${wp.coord.join(',')}`, name: wp.label, description: wp.sublabel ?? '', coord: wp.coord }
+  const fav = isFavorite(place)
+  return (
+    <motion.button
+      type="button"
+      whileTap={{ scale: 0.8 }}
+      onMouseDown={(e) => e.preventDefault()}
+      onClick={() => toggleFavorite(place)}
+      className={
+        'grid size-8 place-items-center rounded-full transition hover:bg-[var(--hover)] ' +
+        (fav ? 'text-amber-500' : 'text-[var(--subtle)] hover:text-amber-500')
+      }
+      aria-label={fav ? 'Убрать из избранного' : 'Добавить в избранное'}
+      title={fav ? 'Убрать из избранного' : 'Добавить в избранное'}
+    >
+      <IconStar filled={fav} className="size-[17px]" />
+    </motion.button>
+  )
+}
 
 export interface WaypointFieldsHandle {
   focus(id: Which): void

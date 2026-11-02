@@ -51,3 +51,64 @@ export async function getWeather(c: LngLat, signal?: AbortSignal): Promise<Weath
   cache.set(key, { at: Date.now(), w })
   return w
 }
+
+export interface WeatherDetails extends Weather {
+  feels: number
+  /** ветер, м/с */
+  wind: number
+  humidity: number
+  hourly: { time: string; temp: number; icon: string }[]
+}
+
+const detailsCache = new Map<string, { at: number; w: WeatherDetails }>()
+
+/** Подробная погода: «ощущается как», ветер, влажность и прогноз на ближайшие часы. */
+export async function getWeatherDetails(c: LngLat, signal?: AbortSignal): Promise<WeatherDetails> {
+  const key = `${c[0].toFixed(2)},${c[1].toFixed(2)}`
+  const hit = detailsCache.get(key)
+  if (hit && Date.now() - hit.at < 10 * 60_000) return hit.w
+  const params = new URLSearchParams({
+    latitude: c[1].toFixed(4),
+    longitude: c[0].toFixed(4),
+    current: 'temperature_2m,apparent_temperature,weather_code,is_day,wind_speed_10m,relative_humidity_2m',
+    hourly: 'temperature_2m,weather_code,is_day',
+    forecast_hours: '8',
+    wind_speed_unit: 'ms',
+    timezone: 'auto',
+  })
+  const d = await request<{
+    current: {
+      time: string
+      temperature_2m: number
+      apparent_temperature: number
+      weather_code: number
+      is_day: number
+      wind_speed_10m: number
+      relative_humidity_2m: number
+    }
+    hourly: { time: string[]; temperature_2m: number[]; weather_code: number[]; is_day: number[] }
+  }>(`https://api.open-meteo.com/v1/forecast?${params}`, { signal })
+  const isDay = d.current.is_day === 1
+  const hourly = d.hourly.time
+    .map((t, i) => ({
+      t,
+      time: t.slice(11, 16),
+      temp: Math.round(d.hourly.temperature_2m[i]),
+      icon: describe(d.hourly.weather_code[i], d.hourly.is_day[i] === 1).icon,
+    }))
+    .filter((h) => h.t > d.current.time) // только будущие часы (время — местное для точки)
+    .slice(0, 6)
+    .map(({ time, temp, icon }) => ({ time, temp, icon }))
+  const w: WeatherDetails = {
+    temp: Math.round(d.current.temperature_2m),
+    code: d.current.weather_code,
+    isDay,
+    ...describe(d.current.weather_code, isDay),
+    feels: Math.round(d.current.apparent_temperature),
+    wind: Math.round(d.current.wind_speed_10m * 10) / 10,
+    humidity: Math.round(d.current.relative_humidity_2m),
+    hourly,
+  }
+  detailsCache.set(key, { at: Date.now(), w })
+  return w
+}
