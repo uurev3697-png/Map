@@ -1,25 +1,32 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { getCurrentPosition } from '../hooks/geolocation'
-import type { useRoutePlanner, Which } from '../hooks/useRoutePlanner'
+import { pick, type Planner, type Which } from '../hooks/useRoutePlanner'
 import { useSuggestions } from '../hooks/useSuggestions'
+import { addToHistory } from '../lib/places'
+import { isAbort } from '../services/errors'
 import type { LngLat, Place } from '../services/types'
+import { getWeather, type Weather } from '../services/weather'
 import { Directions } from './Directions'
+import { ElevationProfile } from './ElevationProfile'
 import { IconCar, IconLocate, IconPin, IconRoute, IconSearch } from './icons'
+import { RouteActions } from './RouteActions'
 import { RouteCards } from './RouteCards'
 import { Suggestions } from './Suggestions'
+import { TimePicker } from './TimePicker'
 import { useToast } from './Toast'
 import { WaypointFields, type WaypointFieldsHandle } from './WaypointFields'
-
-type Planner = ReturnType<typeof useRoutePlanner>
 
 interface Props {
   planner: Planner
   near?: LngLat
   onStep(coord: LngLat): void
   onEditingChange?(editing: boolean): void
-  /** Мобильная шторка: шапка — зона перетаскивания */
+  /** Мобильная шторка: шапка рисуется снаружи */
   compactHeader?: boolean
+  flying: boolean
+  canFly: boolean
+  onFly(): void
 }
 
 const fade = {
@@ -29,52 +36,75 @@ const fade = {
   transition: { duration: 0.25, ease: [0.32, 0.72, 0, 1] as const },
 }
 
-export function RoutePanel({ planner, near, onStep, onEditingChange, compactHeader }: Props) {
+/** Погода в точке назначения */
+function useWeather(coord?: LngLat) {
+  const [w, setW] = useState<{ key: string; w: Weather } | null>(null)
+  const key = coord ? `${coord[0].toFixed(2)},${coord[1].toFixed(2)}` : ''
+  useEffect(() => {
+    if (!coord) return
+    const ctl = new AbortController()
+    getWeather(coord, ctl.signal)
+      .then((weather) => setW({ key, w: weather }))
+      .catch((e) => !isAbort(e) && setW(null))
+    return () => ctl.abort()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key])
+  return w && w.key === key ? w.w : null
+}
+
+export function RoutePanel({ planner, near, onStep, onEditingChange, compactHeader, flying, canFly, onFly }: Props) {
   const toast = useToast()
-  const { points, routes, activeMode } = planner
-  const [texts, setTexts] = useState<Record<Which, string>>({ from: '', to: '' })
+  const { slots, routes, activeMode } = planner
+  const [texts, setTexts] = useState<Record<Which, string>>({})
   const [editing, setEditing] = useState<Which | null>(null)
   const [highlight, setHighlight] = useState(-1)
   const [locating, setLocating] = useState<Which | null>(null)
   const fieldsRef = useRef<WaypointFieldsHandle>(null)
   // Актуальные подписи точек (обновляются сразу, до перерисовки) — для onBlur
-  const labelsRef = useRef<Record<Which, string>>({ from: '', to: '' })
-  labelsRef.current = { from: points.from?.label ?? '', to: points.to?.label ?? '' }
+  const labelsRef = useRef<Record<Which, string>>({})
+  labelsRef.current = Object.fromEntries(slots.map((s) => [s.id, s.wp?.label ?? '']))
 
-  const editingText = editing ? texts[editing] : ''
-  const userTyped = editing ? editingText !== (points[editing]?.label ?? '') : false
+  const labelOf = (id: Which | null) => (id ? (slots.find((s) => s.id === id)?.wp?.label ?? '') : '')
+  const editingText = editing ? (texts[editing] ?? '') : ''
+  const userTyped = editing ? editingText !== labelOf(editing) : false
   const sugg = useSuggestions(editingText, near, !!editing && userTyped)
 
-  // Синхронизируем текст полей с точками, выбранными на карте
-  const fromLabel = points.from?.label ?? ''
-  const toLabel = points.to?.label ?? ''
-  useEffect(() => setTexts((t) => (editing === 'from' ? t : { ...t, from: fromLabel })), [fromLabel, points.from?.coord]) // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => setTexts((t) => (editing === 'to' ? t : { ...t, to: toLabel })), [toLabel, points.to?.coord]) // eslint-disable-line react-hooks/exhaustive-deps
+  // Синхронизируем текст полей с точками, выбранными на карте / из ссылки
+  const labelsKey = slots.map((s) => `${s.id}:${s.wp?.label ?? ''}:${s.wp?.coord.join(',') ?? ''}`).join('|')
+  useEffect(() => {
+    setTexts((t) => {
+      const next: Record<Which, string> = {}
+      for (const s of slots) next[s.id] = editing === s.id ? (t[s.id] ?? '') : (s.wp?.label ?? '')
+      return next
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [labelsKey])
 
   useEffect(() => onEditingChange?.(!!editing), [editing, onEditingChange])
   useEffect(() => setHighlight(sugg.results.length ? 0 : -1), [sugg.results])
 
-  const pick = (which: Which, place: Place) => {
-    planner.setPoint(which, { coord: place.coord, label: place.name, sublabel: place.description })
-    labelsRef.current[which] = place.name
-    setTexts((t) => ({ ...t, [which]: place.name }))
-    const other: Which = which === 'from' ? 'to' : 'from'
-    if (!points[other]) {
-      setEditing(other)
-      fieldsRef.current?.focus(other)
+  const pickPlace = (id: Which, place: Place) => {
+    planner.setPoint(id, { coord: place.coord, label: place.name, sublabel: place.description })
+    addToHistory(place)
+    labelsRef.current[id] = place.name
+    setTexts((t) => ({ ...t, [id]: place.name }))
+    const nextEmpty = slots.find((s) => s.id !== id && !s.wp)
+    if (nextEmpty) {
+      setEditing(nextEmpty.id)
+      fieldsRef.current?.focus(nextEmpty.id)
     } else {
       setEditing(null)
       fieldsRef.current?.blurAll()
     }
   }
 
-  const locate = async (which: Which) => {
-    setLocating(which)
+  const locate = async (id: Which) => {
+    setLocating(id)
     try {
       const coord = await getCurrentPosition()
-      planner.setPointFromCoord(which, coord, 'Моё местоположение')
-      labelsRef.current[which] = 'Моё местоположение'
-      setTexts((t) => ({ ...t, [which]: 'Моё местоположение' }))
+      planner.setPointFromCoord(id, coord, 'Моё местоположение')
+      labelsRef.current[id] = 'Моё местоположение'
+      setTexts((t) => ({ ...t, [id]: 'Моё местоположение' }))
       setEditing(null)
       fieldsRef.current?.blurAll()
     } catch (e) {
@@ -84,7 +114,7 @@ export function RoutePanel({ planner, near, onStep, onEditingChange, compactHead
     }
   }
 
-  const onKeyDown = (which: Which, e: KeyboardEvent<HTMLInputElement>) => {
+  const onKeyDown = (id: Which, e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'ArrowDown') {
       e.preventDefault()
       setHighlight((h) => Math.min(sugg.results.length - 1, h + 1))
@@ -93,15 +123,19 @@ export function RoutePanel({ planner, near, onStep, onEditingChange, compactHead
       setHighlight((h) => Math.max(0, h - 1))
     } else if (e.key === 'Enter') {
       const r = sugg.results[highlight] ?? sugg.results[0]
-      if (r && !sugg.loading) pick(which, r)
+      if (r && !sugg.loading) pickPlace(id, r)
     } else if (e.key === 'Escape') {
       fieldsRef.current?.blurAll()
     }
   }
 
-  const hasBoth = !!(points.from && points.to)
+  const hasRoute = slots.filter((s) => s.wp).length >= 2 && !!slots[0].wp && !!slots[slots.length - 1].wp
   const active = routes[activeMode]
-  const view = editing ? 'search' : hasBoth ? 'routes' : 'empty'
+  const activeRoute = pick(active)
+  const view = editing ? 'search' : hasRoute ? 'routes' : 'empty'
+  const filledCount = slots.filter((s) => s.wp).length
+  const destCoord = slots[slots.length - 1].wp?.coord
+  const weather = useWeather(destCoord)
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -114,11 +148,11 @@ export function RoutePanel({ planner, near, onStep, onEditingChange, compactHead
               </span>
               <div>
                 <h1 className="text-[17px] leading-tight font-extrabold tracking-[-0.02em]">Маршрут</h1>
-                <p className="text-[12px] leading-tight text-[var(--muted)]">Пешком и на машине</p>
+                <p className="text-[12px] leading-tight text-[var(--muted)]">Пешком, на велосипеде и машине</p>
               </div>
             </div>
             <AnimatePresence>
-              {(points.from || points.to) && (
+              {filledCount > 0 && (
                 <motion.button
                   initial={{ opacity: 0, scale: 0.9 }}
                   animate={{ opacity: 1, scale: 1 }}
@@ -134,32 +168,41 @@ export function RoutePanel({ planner, near, onStep, onEditingChange, compactHead
         )}
         <WaypointFields
           ref={fieldsRef}
-          points={points}
+          slots={slots}
           editing={editing}
           texts={texts}
           locating={locating}
-          onText={(w, t) => setTexts((x) => ({ ...x, [w]: t }))}
-          onFocus={(w) => setEditing(w)}
-          onBlur={(w) => {
-            setEditing((cur) => (cur === w ? null : cur))
-            setTexts((x) => ({ ...x, [w]: labelsRef.current[w] }))
+          weather={weather}
+          onText={(id, t) => setTexts((x) => ({ ...x, [id]: t }))}
+          onFocus={(id) => setEditing(id)}
+          onBlur={(id) => {
+            setEditing((cur) => (cur === id ? null : cur))
+            setTexts((x) => ({ ...x, [id]: labelsRef.current[id] ?? '' }))
           }}
           onKeyDown={onKeyDown}
-          onClear={(w) => {
-            planner.setPoint(w, null)
-            labelsRef.current[w] = ''
-            setTexts((x) => ({ ...x, [w]: '' }))
-            fieldsRef.current?.focus(w)
+          onClear={(id) => {
+            const idx = slots.findIndex((s) => s.id === id)
+            const isStop = idx > 0 && idx < slots.length - 1
+            if (isStop) {
+              planner.removeStop(id)
+              return
+            }
+            planner.setPoint(id, null)
+            labelsRef.current[id] = ''
+            setTexts((x) => ({ ...x, [id]: '' }))
+            fieldsRef.current?.focus(id)
           }}
           onLocate={locate}
-          onSwap={() => {
-            planner.swap()
-            setTexts((t) => ({ from: t.to, to: t.from }))
+          onSwap={planner.swap}
+          onReorder={planner.reorder}
+          onAddStop={() => {
+            const id = planner.addStop()
+            if (id) setTimeout(() => fieldsRef.current?.focus(id), 60)
           }}
         />
       </div>
 
-      <div className="scroll-thin mt-3 min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-4">
+      <div className="scroll-thin mt-2 min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-4">
         <AnimatePresence mode="wait" initial={false}>
           {view === 'search' && (
             <motion.div key="search" {...fade}>
@@ -170,20 +213,36 @@ export function RoutePanel({ planner, near, onStep, onEditingChange, compactHead
                 error={sugg.error}
                 highlight={highlight}
                 onHover={setHighlight}
-                onPick={(p) => editing && pick(editing, p)}
+                onPick={(p) => editing && pickPlace(editing, p)}
                 onLocate={() => editing && locate(editing)}
               />
             </motion.div>
           )}
           {view === 'routes' && (
             <motion.div key="routes" {...fade} className="space-y-2.5">
-              <RouteCards routes={routes} active={activeMode} onSelect={planner.setActiveMode} />
+              <TimePicker value={planner.time} onChange={planner.setTime} />
+              <RouteCards
+                routes={routes}
+                active={activeMode}
+                time={planner.time}
+                onSelect={planner.setActiveMode}
+                onAlternative={planner.setAlternative}
+              />
               <AnimatePresence mode="wait">
-                {active.route ? (
-                  <motion.div key={activeMode + active.route.distance} {...fade}>
-                    <Directions route={active.route} onStep={onStep} />
-                    <p className="mt-3 px-1 text-[10.5px] text-[var(--subtle)]">
-                      Маршрут: {active.route.provider} · данные © участники OpenStreetMap
+                {activeRoute ? (
+                  <motion.div key={activeMode + activeRoute.distance} {...fade} className="space-y-2.5">
+                    <RouteActions
+                      points={planner.points}
+                      mode={activeMode}
+                      flying={flying}
+                      canFly={canFly}
+                      onFly={onFly}
+                    />
+                    {activeMode !== 'car' && <ElevationProfile route={activeRoute} />}
+                    <Directions route={activeRoute} onStep={onStep} />
+                    {activeMode === 'car' && <ElevationProfile route={activeRoute} />}
+                    <p className="px-1 text-[10.5px] text-[var(--subtle)]">
+                      Маршрут: {activeRoute.provider} · высоты и погода: Open-Meteo · данные © участники OpenStreetMap
                     </p>
                   </motion.div>
                 ) : active.status === 'loading' ? (
@@ -197,7 +256,7 @@ export function RoutePanel({ planner, near, onStep, onEditingChange, compactHead
           )}
           {view === 'empty' && (
             <motion.div key="empty" {...fade}>
-              <EmptyHint step={points.from || points.to ? 2 : 1} />
+              <EmptyHint step={filledCount ? 2 : 1} />
             </motion.div>
           )}
         </AnimatePresence>
@@ -214,13 +273,11 @@ function EmptyHint({ step }: { step: 1 | 2 }) {
   ]
   return (
     <div className="rounded-[20px] border border-dashed border-[var(--border-strong)] p-4">
-      <p className="text-[14px] font-bold">
-        {step === 1 ? 'Куда отправимся?' : 'Осталась вторая точка'}
-      </p>
+      <p className="text-[14px] font-bold">{step === 1 ? 'Куда отправимся?' : 'Осталась конечная точка'}</p>
       <p className="mt-0.5 text-[12.5px] text-[var(--muted)]">
         {step === 1
-          ? 'Задайте точки А и Б — мы построим маршрут пешком и на машине.'
-          : 'Выберите вторую точку — маршрут построится автоматически.'}
+          ? 'Задайте точки А и Б — мы построим маршрут пешком, на велосипеде и на машине.'
+          : 'Выберите точку Б — маршрут построится автоматически.'}
       </p>
       <ul className="mt-3.5 space-y-2.5">
         {tips.map(({ Icon, title, text }, i) => (
@@ -242,7 +299,7 @@ function EmptyHint({ step }: { step: 1 | 2 }) {
         ))}
       </ul>
       <div className="mt-4 flex items-center gap-2 text-[11.5px] text-[var(--subtle)]">
-        <IconCar className="size-3.5" /> Маркеры можно перетаскивать
+        <IconCar className="size-3.5" /> Маркеры можно перетаскивать, остановки — менять местами
       </div>
     </div>
   )

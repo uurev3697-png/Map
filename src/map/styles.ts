@@ -1,4 +1,5 @@
 import type { StyleSpecification } from 'maplibre-gl'
+import { buildVectorStyle } from './mapTheme'
 
 export type LayerId = 'osm' | 'satellite' | 'dark' | 'google'
 
@@ -15,7 +16,7 @@ export const GOOGLE_MAP_ID = import.meta.env.VITE_GOOGLE_MAPS_MAP_ID?.trim() || 
 export const LAYERS: MapLayerOption[] = [
   { id: 'osm', label: 'Схема', preview: 'linear-gradient(135deg,#eef0e6 0%,#f7f3ea 45%,#c9dff2 46%,#c9dff2 60%,#e8ead9 61%)' },
   { id: 'satellite', label: 'Спутник', preview: 'linear-gradient(135deg,#2f4a2a 0%,#4f6b3a 40%,#2b4660 41%,#1d3348 70%,#56603f 71%)' },
-  { id: 'dark', label: 'Тёмная', preview: 'linear-gradient(135deg,#1b1f27 0%,#262b36 45%,#10141b 46%,#10141b 60%,#2b303b 61%)' },
+  { id: 'dark', label: 'Тёмная', preview: 'linear-gradient(135deg,#2a303c 0%,#3a414f 45%,#1d3a57 46%,#1d3a57 60%,#2b3d36 61%)' },
   ...(GOOGLE_KEY
     ? [{ id: 'google' as const, label: 'Google', preview: 'linear-gradient(135deg,#e8f0e2 0%,#f5f5f5 45%,#aadaff 46%,#aadaff 60%,#fde293 61%)' }]
     : []),
@@ -48,12 +49,13 @@ const SATELLITE: StyleSpecification = {
   ],
 }
 
-export function styleFor(id: Exclude<LayerId, 'google'>): string | StyleSpecification {
+/** Стиль MapLibre для слоя с учётом зимнего режима. */
+export async function styleFor(id: Exclude<LayerId, 'google'>, winter: boolean): Promise<StyleSpecification> {
   switch (id) {
     case 'osm':
-      return 'https://tiles.openfreemap.org/styles/liberty'
+      return buildVectorStyle({ night: false, winter })
     case 'dark':
-      return 'https://tiles.openfreemap.org/styles/dark'
+      return buildVectorStyle({ night: true, winter })
     case 'satellite':
       return SATELLITE
   }
@@ -62,6 +64,7 @@ export function styleFor(id: Exclude<LayerId, 'google'>): string | StyleSpecific
 /** Цвета маршрутов (используются и в MapLibre, и в Google) */
 export const ROUTE_COLORS = {
   car: { from: '#6366f1', to: '#8b5cf6', casing: '#ffffff', casingDark: '#0b0d12' },
-  foot: { from: '#10b981', to: '#06b6d4', casing: '#ffffff', casingDark: '#0b0d12' },
+  foot: { from: '#16b364', to: '#0e9384', casing: '#ffffff', casingDark: '#0b0d12' },
+  bike: { from: '#f59e0b', to: '#ea580c', casing: '#ffffff', casingDark: '#0b0d12' },
   inactive: '#64748b',
 } as const

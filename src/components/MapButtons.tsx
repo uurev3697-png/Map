@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import type { ReactNode } from 'react'
-import { IconMinus, IconMoon, IconPlus, IconRoute, IconSun } from './icons'
+import { IconCube, IconMinus, IconMoon, IconNavigation, IconPlus, IconRoute, IconSnowflake, IconSun } from './icons'
 
 export function ThemeToggle({ dark, onToggle }: { dark: boolean; onToggle(): void }) {
   return (
@@ -22,6 +22,61 @@ export function ThemeToggle({ dark, onToggle }: { dark: boolean; onToggle(): voi
           {dark ? <IconMoon /> : <IconSun />}
         </motion.span>
       </AnimatePresence>
+    </motion.button>
+  )
+}
+
+export function WinterToggle({ on, onToggle }: { on: boolean; onToggle(): void }) {
+  return (
+    <motion.button
+      whileTap={{ scale: 0.92 }}
+      onClick={onToggle}
+      aria-pressed={on}
+      className={
+        'glass grid size-11 place-items-center overflow-hidden rounded-2xl transition-colors ' +
+        (on ? '!bg-sky-500 text-white !border-sky-400/60 shadow-sky-500/30' : 'hover:text-sky-500')
+      }
+      aria-label={on ? 'Выключить зимний режим' : 'Включить зимний режим'}
+      title={on ? 'Зимний режим: вкл.' : 'Зимний режим'}
+    >
+      <motion.span animate={{ rotate: on ? 180 : 0 }} transition={{ type: 'spring', stiffness: 200, damping: 14 }}>
+        <IconSnowflake />
+      </motion.span>
+    </motion.button>
+  )
+}
+
+const round = 'glass grid size-11 place-items-center overflow-hidden rounded-2xl transition-colors '
+
+export function TiltToggle({ on, onToggle }: { on: boolean; onToggle(): void }) {
+  return (
+    <motion.button
+      whileTap={{ scale: 0.92 }}
+      onClick={onToggle}
+      aria-pressed={on}
+      className={round + (on ? '!bg-indigo-500 text-white !border-indigo-400/60' : 'hover:text-indigo-500')}
+      aria-label={on ? 'Плоская карта' : '3D-здания'}
+      title={on ? 'Плоская карта' : '3D-здания'}
+    >
+      <span className="flex flex-col items-center leading-none">
+        <IconCube className="size-[17px]" />
+        <span className="mt-0.5 text-[9px] font-extrabold tracking-wide">3D</span>
+      </span>
+    </motion.button>
+  )
+}
+
+export function LocateButton({ active, busy, onClick }: { active: boolean; busy: boolean; onClick(): void }) {
+  return (
+    <motion.button
+      whileTap={{ scale: 0.92 }}
+      onClick={onClick}
+      disabled={busy}
+      className={round + (active ? 'text-sky-500' : 'hover:text-sky-500')}
+      aria-label="Где я"
+      title="Где я"
+    >
+      <IconNavigation className={'size-[18px] ' + (busy ? 'animate-pulse' : '') + (active ? ' fill-current' : '')} />
     </motion.button>
   )
 }
