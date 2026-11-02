@@ -14,7 +14,7 @@ interface Props {
 }
 
 const btn =
-  'flex flex-1 items-center justify-center gap-1.5 rounded-2xl border border-[var(--border)] px-2 py-2.5 text-[12.5px] font-bold transition hover:bg-[var(--hover)] active:scale-[0.98]'
+  'flex flex-1 items-center whitespace-nowrap justify-center gap-1.5 rounded-2xl border border-[var(--border)] px-2 py-2.5 text-[12.5px] font-bold transition hover:bg-[var(--hover)] active:scale-[0.98]'
 
 /** Поделиться маршрутом, пролёт камеры, открыть во внешних картах. */
 export function RouteActions({ points, mode, flying, canFly, onFly }: Props) {
@@ -65,7 +65,7 @@ export function RouteActions({ points, mode, flying, canFly, onFly }: Props) {
       )}
       <div ref={ref} className="relative flex flex-1">
         <button type="button" onClick={() => setOpen((o) => !o)} className={btn} aria-expanded={open}>
-          <IconExternal className="size-4" /> Открыть в…
+          <IconExternal className="size-4" /> Открыть
         </button>
         <AnimatePresence>
           {open && (

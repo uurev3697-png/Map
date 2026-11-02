@@ -72,11 +72,11 @@ export function RouteCards({ routes, active, time, onSelect, onAlternative }: Pr
                 />
               )}
               <div className="relative">
-                <div className="flex items-center gap-1.5">
-                  <span className={`grid size-7 shrink-0 place-items-center rounded-[10px] ${meta.tint}`}>
-                    <meta.Icon className="size-4" />
+                <div className="flex items-center gap-1">
+                  <span className={`grid size-6 shrink-0 place-items-center rounded-lg ${meta.tint}`}>
+                    <meta.Icon className="size-[15px]" />
                   </span>
-                  <span className="truncate text-[12px] font-semibold text-[var(--muted)]">{meta.label}</span>
+                  <span className="truncate text-[11.5px] font-semibold tracking-[-0.01em] text-[var(--muted)]">{meta.label}</span>
                 </div>
                 <div className="mt-2 min-h-[40px]">
                   {s.status === 'loading' && !r ? (
