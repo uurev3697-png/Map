@@ -71,10 +71,8 @@ function Overlay(props: MapViewProps) {
       [r!.bbox[0], r!.bbox[1]] as LngLat,
       [r!.bbox[2], r!.bbox[3]] as LngLat,
     ])
-    if (!pts.length) {
-      if (from) pts.push(from)
-      if (to) pts.push(to)
-    }
+    if (from) pts.push(from)
+    if (to) pts.push(to)
     if (pts.length === 1) {
       map.panTo(toLL(pts[0]))
       map.setZoom(Math.max(map.getZoom() ?? 14, 14))

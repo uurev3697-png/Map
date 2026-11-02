@@ -58,10 +58,7 @@ export default function MapView(props: Props) {
     propsRef.current.onReady?.({
       zoomIn: () => map.zoomIn({ duration: 300 }),
       zoomOut: () => map.zoomOut({ duration: 300 }),
-      flyTo: (coord, zoom = 15) => {
-        const p = propsRef.current.padding
-        map.flyTo({ center: coord, zoom, padding: p, speed: 1.4, curve: 1.5, essential: true })
-      },
+      flyTo: (coord, zoom = 15) => map.flyTo({ center: coord, zoom, speed: 1.4, curve: 1.5, essential: true }),
     })
 
     return () => {
@@ -145,8 +142,10 @@ export default function MapView(props: Props) {
   useEffect(() => {
     const map = mapRef.current
     if (!map || !props.fitKey) return
-    const { routes, from, to, padding } = propsRef.current
+    const { routes, from, to } = propsRef.current
+    // В область включаем и сами маркеры: маршрут «прилипает» к дороге и может их не покрывать
     const boxes = Object.values(routes).map((r) => r!.bbox)
+    for (const c of [from, to]) if (c && boxes.length) boxes.push([c[0], c[1], c[0], c[1]])
     if (boxes.length) {
       const b: [number, number, number, number] = [
         Math.min(...boxes.map((x) => x[0])),
@@ -154,15 +153,15 @@ export default function MapView(props: Props) {
         Math.max(...boxes.map((x) => x[2])),
         Math.max(...boxes.map((x) => x[3])),
       ]
-      map.fitBounds(b, { padding: pad(padding, 60), duration: 1400, maxZoom: 17, essential: true })
+      map.fitBounds(b, { padding: 60, duration: 1400, maxZoom: 17, essential: true })
     } else if (from && to) {
       map.fitBounds([from, to].reduce((bb, c) => bb.extend(c), new maplibregl.LngLatBounds(from, from)), {
-        padding: pad(padding, 80),
+        padding: 80,
         duration: 1200,
         maxZoom: 16,
       })
     } else if (from || to) {
-      map.flyTo({ center: (from ?? to)!, zoom: Math.max(map.getZoom(), 14), padding, speed: 1.4, essential: true })
+      map.flyTo({ center: (from ?? to)!, zoom: Math.max(map.getZoom(), 14), speed: 1.4, essential: true })
     }
   }, [props.fitKey])
 
@@ -170,9 +169,15 @@ export default function MapView(props: Props) {
   useEffect(() => {
     const map = mapRef.current
     if (!map || !props.focus) return
-    map.flyTo({ center: props.focus.coord, zoom: 17, padding: props.padding, speed: 1.6, essential: true })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    map.flyTo({ center: props.focus.coord, zoom: 17, speed: 1.6, essential: true })
   }, [props.focus])
+
+  // Отступы камеры под панели интерфейса. Задаём один раз на карте:
+  // MapLibre складывает padding карты с padding в fitBounds/flyTo.
+  const { top, right, bottom, left } = props.padding
+  useEffect(() => {
+    mapRef.current?.setPadding({ top, right, bottom, left })
+  }, [top, right, bottom, left])
 
   return (
     <div className="absolute inset-0">
@@ -194,8 +199,4 @@ function localizeLabels(map: MlMap) {
     if (!tf || !JSON.stringify(tf).includes('name')) continue
     map.setLayoutProperty(layer.id, 'text-field', ['coalesce', ['get', 'name:ru'], ['get', 'name']])
   }
-}
-
-function pad(p: MapViewProps['padding'], extra: number) {
-  return { top: p.top + extra, right: p.right + extra, bottom: p.bottom + extra, left: p.left + extra }
 }
