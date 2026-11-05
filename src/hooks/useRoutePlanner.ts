@@ -164,6 +164,14 @@ export function useRoutePlanner() {
     })
   }, [])
 
+  /** Открыть сохранённый маршрут: точки с готовыми подписями, без повторного геокодинга */
+  const loadSaved = useCallback((pts: Waypoint[], mode?: TravelMode) => {
+    reverseCtl.current.forEach((c) => c.abort())
+    const list = pts.length >= 2 ? pts : [...pts, null]
+    setSlots(list.map((wp) => ({ id: newId(), wp: wp && { ...wp, resolving: false } })))
+    if (mode) setActiveMode(mode)
+  }, [])
+
   const setAlternative = useCallback((mode: TravelMode, idx: number) => {
     setRoutes((r) => ({ ...r, [mode]: { ...r[mode], selected: idx } }))
   }, [])
@@ -263,6 +271,7 @@ export function useRoutePlanner() {
     swap,
     clearAll,
     loadPoints,
+    loadSaved,
     startFrom,
   }
 }

@@ -70,3 +70,69 @@ export function setQuick(kind: QuickKind, p: Place | null) {
   }
   window.dispatchEvent(new Event('places-changed'))
 }
+
+// ===== Сохранённые маршруты =====
+export interface SavedPoint {
+  coord: [number, number]
+  label: string
+  sublabel?: string
+}
+export interface SavedRoute {
+  id: string
+  name: string
+  points: SavedPoint[]
+  mode: 'foot' | 'bike' | 'car'
+  createdAt: number
+}
+const ROUTES = 'saved-routes'
+
+export function getSavedRoutes(): SavedRoute[] {
+  try {
+    const v = JSON.parse(localStorage.getItem(ROUTES) || '[]')
+    return Array.isArray(v) ? v.filter((r) => r && Array.isArray(r.points) && r.points.length >= 2) : []
+  } catch {
+    return []
+  }
+}
+function writeRoutes(list: SavedRoute[]) {
+  try {
+    localStorage.setItem(ROUTES, JSON.stringify(list))
+  } catch {
+    /* приватный режим */
+  }
+  window.dispatchEvent(new Event('places-changed'))
+}
+export function saveRoute(r: Omit<SavedRoute, 'id' | 'createdAt'>): SavedRoute {
+  const route = { ...r, id: `r${Date.now().toString(36)}`, createdAt: Date.now() }
+  writeRoutes([route, ...getSavedRoutes()].slice(0, 30))
+  return route
+}
+export function deleteSavedRoute(id: string) {
+  writeRoutes(getSavedRoutes().filter((r) => r.id !== id))
+}
+
+// ===== Где моя машина =====
+export interface Parking {
+  coord: [number, number]
+  at: number
+  label?: string
+}
+const PARKING = 'parking'
+
+export function getParking(): Parking | null {
+  try {
+    const v = JSON.parse(localStorage.getItem(PARKING) || 'null')
+    return v && Array.isArray(v.coord) ? v : null
+  } catch {
+    return null
+  }
+}
+export function setParking(p: Parking | null) {
+  try {
+    if (p) localStorage.setItem(PARKING, JSON.stringify(p))
+    else localStorage.removeItem(PARKING)
+  } catch {
+    /* приватный режим */
+  }
+  window.dispatchEvent(new Event('places-changed'))
+}

@@ -3,14 +3,18 @@ import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { getCurrentPosition } from '../hooks/geolocation'
 import { pick, type Planner, type Which } from '../hooks/useRoutePlanner'
 import { useSuggestions } from '../hooks/useSuggestions'
-import { addToHistory, type QuickKind } from '../lib/places'
+import { addToHistory, setParking, type Parking, type QuickKind, type SavedRoute } from '../lib/places'
+import { geocoder } from '../services/geocoding'
 import { isAbort } from '../services/errors'
 import type { LngLat, Place } from '../services/types'
 import { getWeather, type Weather } from '../services/weather'
 import { Directions } from './Directions'
 import { ElevationProfile } from './ElevationProfile'
 import { IconCar, IconLocate, IconPin, IconRoute, IconSearch } from './icons'
+import { ParkingCard } from './ParkingCard'
 import { PlaceSetupDialog } from './PlaceSetupDialog'
+import { SavedRoutes } from './SavedRoutes'
+import { SaveRouteDialog } from './SaveRouteDialog'
 import { QuickPlaces } from './QuickPlaces'
 import { RouteActions } from './RouteActions'
 import { RouteCards } from './RouteCards'
@@ -65,6 +69,8 @@ export function RoutePanel({ planner, near, onStep, onEditingChange, compactHead
   const fieldsRef = useRef<WaypointFieldsHandle>(null)
   // Окно «Указать адрес Дома/Работы» и откуда его открыли (поле или пустая панель)
   const [setup, setSetup] = useState<{ kind: QuickKind; origin: Which | 'empty' } | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [parkingBusy, setParkingBusy] = useState(false)
   // Актуальные подписи точек (обновляются сразу, до перерисовки) — для onBlur
   const labelsRef = useRef<Record<Which, string>>({})
   labelsRef.current = Object.fromEntries(slots.map((s) => [s.id, s.wp?.label ?? '']))
@@ -87,6 +93,17 @@ export function RoutePanel({ planner, near, onStep, onEditingChange, compactHead
 
   useEffect(() => onEditingChange?.(!!editing), [editing, onEditingChange])
   useEffect(() => setHighlight(sugg.results.length ? 0 : -1), [sugg.results])
+  const pendingEnter = useRef<Which | null>(null)
+  useEffect(() => {
+    const id = pendingEnter.current
+    if (!id || sugg.loading) return
+    pendingEnter.current = null
+    if (id === editing && sugg.results[0]) pickPlace(id, sugg.results[0])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sugg.loading, sugg.results])
+  useEffect(() => {
+    pendingEnter.current = null
+  }, [editing])
 
   const pickPlace = (id: Which, place: Place) => {
     planner.setPoint(id, { coord: place.coord, label: place.name, sublabel: place.description })
@@ -143,6 +160,33 @@ export function RoutePanel({ planner, near, onStep, onEditingChange, compactHead
     }
   }
 
+  /** «Я припарковался здесь» */
+  const parkHere = async () => {
+    setParkingBusy(true)
+    try {
+      const coord = await getCurrentPosition()
+      const place = await geocoder.reverse(coord).catch(() => null)
+      setParking({ coord, at: Date.now(), label: place?.name })
+      toast.show({ kind: 'success', title: 'Место парковки сохранено', message: place?.name ?? 'Вернуться к машине можно в «Мои места»' })
+    } catch (e) {
+      toast.show({ kind: 'error', title: 'Геолокация недоступна', message: (e as Error).message })
+    } finally {
+      setParkingBusy(false)
+    }
+  }
+  /** Пешком до машины от текущего места */
+  const goToCar = (p: Parking) => {
+    planner.setActiveMode('foot')
+    void goTo({ id: 'parking', name: 'Моя машина', description: p.label ?? 'Место парковки', coord: p.coord })
+  }
+  const openSaved = (r: SavedRoute) => {
+    planner.loadSaved(
+      r.points.map((pt) => ({ coord: pt.coord, label: pt.label, sublabel: pt.sublabel })),
+      r.mode,
+    )
+    toast.show({ kind: 'info', title: r.name })
+  }
+
   const onKeyDown = (id: Which, e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'ArrowDown') {
       e.preventDefault()
@@ -153,6 +197,8 @@ export function RoutePanel({ planner, near, onStep, onEditingChange, compactHead
     } else if (e.key === 'Enter') {
       const r = sugg.results[highlight] ?? sugg.results[0]
       if (r && !sugg.loading) pickPlace(id, r)
+      // Подсказки ещё грузятся — выберем первую, как только придут
+      else if (sugg.loading) pendingEnter.current = id
     } else if (e.key === 'Escape') {
       fieldsRef.current?.blurAll()
     }
@@ -268,6 +314,7 @@ export function RoutePanel({ planner, near, onStep, onEditingChange, compactHead
                       canFly={canFly}
                       onFly={onFly}
                       onNavigate={onNavigate}
+                      onSave={() => setSaving(true)}
                     />
                     {activeMode !== 'car' && <ElevationProfile route={activeRoute} />}
                     <Directions route={activeRoute} onStep={onStep} />
@@ -290,12 +337,22 @@ export function RoutePanel({ planner, near, onStep, onEditingChange, compactHead
               <div>
                 <p className="mb-2 px-1 text-[11px] font-bold tracking-wide text-[var(--subtle)] uppercase">Мои места</p>
                 <QuickPlaces size="lg" onUse={goTo} onSetup={(kind) => setSetup({ kind, origin: 'empty' })} />
+                <div className="mt-2">
+                  <ParkingCard busy={parkingBusy} onPark={parkHere} onGo={goToCar} />
+                </div>
               </div>
+              <SavedRoutes onOpen={openSaved} />
               <EmptyHint step={filledCount ? 2 : 1} />
             </motion.div>
           )}
         </AnimatePresence>
       </div>
+      <SaveRouteDialog
+        open={saving}
+        mode={activeMode}
+        points={slots.flatMap((sl) => (sl.wp ? [{ coord: sl.wp.coord, label: sl.wp.label, sublabel: sl.wp.sublabel }] : []))}
+        onClose={() => setSaving(false)}
+      />
       <PlaceSetupDialog
         kind={setup?.kind ?? null}
         near={near}

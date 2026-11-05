@@ -2,7 +2,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { useEffect, useRef, useState } from 'react'
 import { externalLinks, shareUrl } from '../lib/share'
 import type { LngLat, TravelMode } from '../services/types'
-import { IconExternal, IconLink, IconPlay, IconShare, IconStop } from './icons'
+import { IconBookmark, IconExternal, IconLink, IconPlay, IconShare, IconStop } from './icons'
 import { useToast } from './Toast'
 
 interface Props {
@@ -13,13 +13,14 @@ interface Props {
   onFly(): void
   /** «В путь» — запуск навигации (simulate — демо-поездка без GPS) */
   onNavigate(simulate: boolean): void
+  onSave(): void
 }
 
 const btn =
   'flex flex-1 items-center whitespace-nowrap justify-center gap-1.5 rounded-2xl border border-[var(--border)] px-2 py-2.5 text-[12.5px] font-bold transition hover:bg-[var(--hover)] active:scale-[0.98]'
 
 /** Поделиться маршрутом, пролёт камеры, открыть во внешних картах. */
-export function RouteActions({ points, mode, flying, canFly, onFly, onNavigate }: Props) {
+export function RouteActions({ points, mode, flying, canFly, onFly, onNavigate, onSave }: Props) {
   const toast = useToast()
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
@@ -143,6 +144,15 @@ export function RouteActions({ points, mode, flying, canFly, onFly, onNavigate }
           )}
         </AnimatePresence>
       </div>
+      <button
+        type="button"
+        onClick={onSave}
+        className="grid shrink-0 place-items-center rounded-2xl border border-[var(--border)] px-3 transition hover:bg-[var(--hover)] hover:text-indigo-500 active:scale-[0.98]"
+        aria-label="Сохранить маршрут"
+        title="Сохранить маршрут"
+      >
+        <IconBookmark className="size-4" />
+      </button>
     </div>
     </div>
   )

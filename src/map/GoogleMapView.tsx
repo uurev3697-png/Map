@@ -146,6 +146,16 @@ function Overlay(props: MapViewProps) {
           </div>
         </AdvancedMarker>
       ))}
+      {props.parking && (
+        <AdvancedMarker position={toLL(props.parking)} anchorLeft="-50%" anchorTop="-100%" zIndex={4} title="Моя машина">
+          <div className="parking-marker is-dropping">
+            <div className="parking-marker__badge">
+              <span>P</span>
+              <span className="parking-marker__car">🚗</span>
+            </div>
+          </div>
+        </AdvancedMarker>
+      )}
       {props.me && (
         <AdvancedMarker position={toLL(props.me.coord)} anchorLeft="-50%" anchorTop="-50%" zIndex={5}>
           <div className={'me-marker' + (props.me.heading !== null ? ' has-heading' : '')}>

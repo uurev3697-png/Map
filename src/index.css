@@ -351,6 +351,40 @@ body {
   }
 }
 
+/* ===== Парковка ===== */
+.parking-marker {
+  cursor: default;
+}
+.parking-marker__badge {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 4px 7px 4px 6px;
+  border-radius: 10px;
+  background: linear-gradient(145deg, #3b82f6, #1d4ed8);
+  color: #fff;
+  font: 800 14px/1 var(--font-sans);
+  border: 2.5px solid #fff;
+  box-shadow: 0 6px 14px -4px rgba(29, 78, 216, 0.6);
+}
+.parking-marker__badge::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -8px;
+  margin-left: -5px;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 7px solid #fff;
+}
+.parking-marker__car {
+  font-size: 13px;
+}
+.parking-marker.is-dropping .parking-marker__badge {
+  animation: marker-drop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
 /* ===== «Я здесь» ===== */
 .me-marker {
   position: relative;
