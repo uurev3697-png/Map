@@ -66,6 +66,9 @@ export function useMyLocation(onError: (msg: string) => void) {
             }
           },
           (err) => {
+            // Кратковременные сбои GPS во время слежения (таймаут, нет сигнала) не показываем —
+            // позиция обновится сама. Сообщаем только о первой ошибке и о запрете доступа.
+            if (!first && err.code !== err.PERMISSION_DENIED) return
             const msg =
               err.code === err.PERMISSION_DENIED
                 ? 'Доступ к геолокации запрещён. Разрешите его в настройках браузера.'

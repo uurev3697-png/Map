@@ -4,6 +4,7 @@ import { BottomSheet, type Snap } from './components/BottomSheet'
 import { Garland } from './components/Garland'
 import { LayerSwitcher } from './components/LayerSwitcher'
 import { LocateButton, RulerToggle, ThemeToggle, TiltToggle, WinterToggle, ZoomControls } from './components/MapButtons'
+import { NavigationOverlay } from './components/NavigationOverlay'
 import { RulerBar } from './components/RulerBar'
 import { WeatherWidget } from './components/WeatherWidget'
 import { RoutePanel } from './components/RoutePanel'
@@ -13,6 +14,9 @@ import { useToast } from './components/Toast'
 import { slotKind, slotLabel } from './components/WaypointFields'
 import { useMediaQuery } from './hooks/useMediaQuery'
 import { useMyLocation } from './hooks/useMyLocation'
+import { announce, useNavigation, useVoiceGuidance, useWakeLock } from './hooks/useNavigation'
+import { projectOnLine } from './lib/geo'
+import { cumulative, haversine } from './services/elevation'
 import { pick, useRoutePlanner } from './hooks/useRoutePlanner'
 import { useTheme } from './hooks/useTheme'
 import { useWinter } from './hooks/useWinter'
@@ -95,9 +99,7 @@ export default function App() {
         : { top: 24, right: 80, bottom: 24, left: PANEL_W + 32 },
     [isMobile, sheetH],
   )
-  useEffect(() => {
-    document.documentElement.style.setProperty('--ctrl-bottom', isMobile ? `${sheetH}px` : '0px')
-  }, [isMobile, sheetH])
+
 
   const [center, setCenter] = useState<LngLat>()
   const [focus, setFocus] = useState<{ coord: LngLat; key: number } | null>(null)
@@ -223,22 +225,124 @@ export default function App() {
   // Сменился маршрут — останавливаем пролёт
   useEffect(() => () => stopFlyRef.current?.(), [activeRoute])
 
+  // ===== Навигация «В путь» =====
+  const [navMode, setNavMode] = useState<{ simulate: boolean } | null>(null)
+  const navOn = !!navMode
+  const [follow, setFollow] = useState(true)
+  const [rerouting, setRerouting] = useState(false)
+  const [voice, setVoice] = useState(() => {
+    try {
+      return localStorage.getItem('nav-voice') !== 'off'
+    } catch {
+      return true
+    }
+  })
+  const toggleVoice = () =>
+    setVoice((v) => {
+      try {
+        localStorage.setItem('nav-voice', v ? 'off' : 'on')
+      } catch {
+        /* приватный режим */
+      }
+      if (v) window.speechSynthesis?.cancel()
+      return !v
+    })
+
+  const onReroute = useCallback(
+    (from: LngLat, along: number) => {
+      if (!activeRoute) return
+      // Пройденные остановки из нового маршрута убираем
+      const cum = cumulative(activeRoute.geometry)
+      const drop = slots
+        .slice(1, -1)
+        .filter((sl) => sl.wp && projectOnLine(activeRoute.geometry, cum, sl.wp.coord).along < along)
+        .map((sl) => sl.id)
+      setRerouting(true)
+      planner.startFrom(from, drop)
+    },
+    [activeRoute, slots, planner],
+  )
+  // Новый маршрут пришёл — перестроение закончено
+  const activeStatus = routes[activeMode].status
+  useEffect(() => {
+    if (rerouting && activeStatus !== 'loading') {
+      setRerouting(false)
+      if (activeStatus === 'ok' && voice) announce('Маршрут перестроен')
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeStatus])
+
+  const nav = useNavigation({
+    route: navOn ? activeRoute : undefined,
+    gps: me?.coord ?? null,
+    active: navOn,
+    simulate: !!navMode?.simulate,
+    onReroute,
+  })
+  useVoiceGuidance(nav, activeMode, voice, navOn)
+  useWakeLock(navOn && !navMode?.simulate)
+
+  const startNavigation = async (simulate: boolean) => {
+    if (!activeRoute) return
+    stopFlyRef.current?.()
+    setRuler({ active: false, points: [] })
+    setTilt3d(false)
+    if (!simulate) {
+      let pos = me
+      if (!pos) {
+        try {
+          pos = await startTracking()
+        } catch {
+          return // сообщение об ошибке уже показано
+        }
+      }
+      // Навигация всегда ведёт от того места, где вы сейчас
+      if (haversine(pos.coord, activeRoute.geometry[0]) > 60) {
+        setRerouting(true)
+        planner.startFrom(pos.coord)
+      }
+    }
+    setFollow(true)
+    setNavMode({ simulate })
+    // Голос в браузере включается только по жесту пользователя — «разогреваем» его здесь
+    if (voice && window.speechSynthesis) window.speechSynthesis.speak(new SpeechSynthesisUtterance(''))
+  }
+  const stopNavigation = () => {
+    setNavMode(null)
+    setRerouting(false)
+    window.speechSynthesis?.cancel()
+    setTimeout(refit, 900)
+  }
+
+  useEffect(() => {
+    const bottom = navOn ? (isMobile ? 104 : 0) : isMobile ? sheetH : 0
+    document.documentElement.style.setProperty('--ctrl-bottom', `${bottom}px`)
+  }, [isMobile, sheetH, navOn])
+
+  const navPadding: MapPadding = useMemo(() => {
+    const h = typeof window === 'undefined' ? 800 : window.innerHeight
+    // Позиция — в нижней трети экрана, чтобы видеть дорогу впереди
+    return { top: Math.round(h * 0.42), right: 16, bottom: isMobile ? 130 : 150, left: 16 }
+  }, [isMobile])
+
   const mapProps = {
     waypoints,
-    routes: mapRoutes,
-    alternatives,
+    routes: navOn && activeRoute ? { [activeMode]: activeRoute } : mapRoutes,
+    alternatives: navOn ? [] : alternatives,
     activeMode,
-    padding,
+    padding: navOn ? navPadding : padding,
     dark,
     fitKey: planner.fitKey,
     focus,
-    me,
+    me: nav ? { coord: nav.pos, heading: nav.heading } : me,
     tilt3d,
+    nav: nav ? { pos: nav.pos, heading: nav.heading, progress: nav.progress, follow } : null,
+    onUserPan: () => navOn && setFollow(false),
     ruler,
     onRulerAdd: (c: LngLat) => setRuler((r) => ({ ...r, points: [...r.points, c] })),
     onRulerMove: (i: number, c: LngLat) =>
       setRuler((r) => ({ ...r, points: r.points.map((p, j) => (j === i ? c : p)) })),
-    onMapClick: planner.setNextFromCoord,
+    onMapClick: (c: LngLat) => !navOn && planner.setNextFromCoord(c),
     onMarkerDrag: planner.setPointFromCoord,
     onSelectAlternative: (idx: number) => planner.setAlternative(activeMode, idx),
     onCenterChange: setCenter,
@@ -257,6 +361,7 @@ export default function App() {
       flying={flying}
       canFly={!isGoogle}
       onFly={onFly}
+      onNavigate={startNavigation}
     />
   )
   const festive = winter && NEW_YEAR
@@ -290,6 +395,26 @@ export default function App() {
         )}
       </AnimatePresence>
 
+      {/* Навигация */}
+      <AnimatePresence>
+        {navOn && (
+          <NavigationOverlay
+            key="nav"
+            nav={nav}
+            mode={activeMode}
+            simulate={!!navMode?.simulate}
+            voice={voice}
+            follow={follow}
+            rerouting={rerouting}
+            onToggleVoice={toggleVoice}
+            onRecenter={() => setFollow(true)}
+            onStop={stopNavigation}
+          />
+        )}
+      </AnimatePresence>
+
+      {!navOn && (
+      <>
       {/* Правые кнопки */}
       <motion.div
         initial={{ opacity: 0, x: 16 }}
@@ -351,9 +476,12 @@ export default function App() {
         </motion.div>
       )}
 
-      {/* Панель маршрута */}
+      </>
+      )}
+
+      {/* Панель маршрута (в навигации скрыта) */}
       <AnimatePresence>
-        {isMobile ? (
+        {navOn ? null : isMobile ? (
           <BottomSheet
             key="sheet"
             snap={snap}

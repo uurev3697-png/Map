@@ -388,6 +388,30 @@ body {
 .me-marker.has-heading .me-marker__cone {
   opacity: 1;
 }
+/* В навигации — стрелка направления в белом круге */
+.me-marker.is-nav {
+  width: 40px;
+  height: 40px;
+}
+.me-marker.is-nav .me-marker__cone {
+  display: none;
+}
+.me-marker.is-nav .me-marker__pulse {
+  inset: -6px;
+}
+.me-marker.is-nav .me-marker__dot {
+  inset: 0;
+  background: #fff;
+  border: none;
+  box-shadow: 0 4px 14px rgba(2, 132, 199, 0.45);
+}
+.me-marker.is-nav .me-marker__dot::after {
+  content: '';
+  position: absolute;
+  inset: 7px;
+  background: linear-gradient(180deg, #38bdf8, #0284c7);
+  clip-path: polygon(50% 0, 94% 94%, 50% 72%, 6% 94%);
+}
 @keyframes me-pulse {
   0% {
     transform: scale(0.4);

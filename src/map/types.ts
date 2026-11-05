@@ -40,6 +40,10 @@ export interface MapViewProps {
   tilt3d: boolean
   /** Линейка: режим измерения и её точки */
   ruler: { active: boolean; points: LngLat[] }
+  /** Режим навигации «В путь»: камера ведёт за позицией, пройденное — серым */
+  nav: { pos: LngLat; heading: number; progress: number; follow: boolean } | null
+  /** Пользователь сдвинул карту рукой (в навигации — перестаём следовать) */
+  onUserPan?: () => void
   onRulerAdd: (coord: LngLat) => void
   onRulerMove: (index: number, coord: LngLat) => void
   onMapClick: (coord: LngLat) => void
