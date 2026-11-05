@@ -29,6 +29,7 @@ interface Props {
   flying: boolean
   canFly: boolean
   onFly(): void
+  onNavigate(simulate: boolean): void
 }
 
 const fade = {
@@ -54,7 +55,7 @@ function useWeather(coord?: LngLat) {
   return w && w.key === key ? w.w : null
 }
 
-export function RoutePanel({ planner, near, onStep, onEditingChange, compactHeader, flying, canFly, onFly }: Props) {
+export function RoutePanel({ planner, near, onStep, onEditingChange, compactHeader, flying, canFly, onFly, onNavigate }: Props) {
   const toast = useToast()
   const { slots, routes, activeMode } = planner
   const [texts, setTexts] = useState<Record<Which, string>>({})
@@ -266,6 +267,7 @@ export function RoutePanel({ planner, near, onStep, onEditingChange, compactHead
                       flying={flying}
                       canFly={canFly}
                       onFly={onFly}
+                      onNavigate={onNavigate}
                     />
                     {activeMode !== 'car' && <ElevationProfile route={activeRoute} />}
                     <Directions route={activeRoute} onStep={onStep} />

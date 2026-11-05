@@ -77,6 +77,13 @@ export default function MapView(props: Props) {
       const over = map.getLayer(L_ALT_HIT) && map.queryRenderedFeatures(e.point, { layers: [L_ALT_HIT] }).length > 0
       map.getCanvas().style.cursor = over ? 'pointer' : 'crosshair'
     })
+    const userMove = (e: { originalEvent?: unknown }) => e.originalEvent && propsRef.current.onUserPan?.()
+    // В навигации камера двигается постоянно и «съедает» начало жеста,
+    // поэтому ловим само касание/нажатие/колесо, а не dragstart
+    map.on('mousedown', userMove)
+    map.on('touchstart', userMove)
+    map.on('wheel', userMove)
+    map.on('dragstart', userMove)
     map.on('moveend', () => {
       const c = map.getCenter()
       propsRef.current.onCenterChange?.([c.lng, c.lat])
@@ -138,7 +145,7 @@ export default function MapView(props: Props) {
     if (!activeRoute) return
     if (lastAnimated.current === activeRoute) {
       // Тот же маршрут (например, после смены стиля) — рисуем сразу целиком
-      paintActive(map, props.activeMode, 1, darkCasing)
+      paintActive(map, props.activeMode, 1, darkCasing, propsRef.current.nav?.progress ?? 0)
       return
     }
     lastAnimated.current = activeRoute
@@ -183,6 +190,47 @@ export default function MapView(props: Props) {
       }
     }
   }, [props.waypoints])
+
+  // Навигация: пройденная часть маршрута — серым
+  const navProgress = props.nav ? Math.round(props.nav.progress * 1000) / 1000 : 0
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !styleReady || !props.nav) return
+    paintActive(map, props.activeMode, 1, darkCasing, navProgress)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [navProgress, styleReady])
+
+  // Навигация: камера следует за позицией, карта повёрнута по направлению движения
+  const navOn = !!props.nav
+  const navFollow = props.nav?.follow ?? false
+  const navKey = props.nav ? `${props.nav.pos[0].toFixed(6)},${props.nav.pos[1].toFixed(6)},${Math.round(props.nav.heading)}` : ''
+  useEffect(() => {
+    const map = mapRef.current
+    const nav = propsRef.current.nav
+    if (!map || !nav || !nav.follow) return
+    const zoom = props.activeMode === 'car' ? 16.6 : 17.6
+    map.easeTo({
+      center: nav.pos,
+      bearing: nav.heading,
+      pitch: 58,
+      zoom: Math.abs(map.getZoom() - zoom) > 2.5 ? zoom : map.getZoom(),
+      duration: 700,
+      easing: (t) => t,
+      essential: true,
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [navKey, navFollow])
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+    if (navOn) {
+      const zoom = props.activeMode === 'car' ? 16.6 : 17.6
+      map.easeTo({ zoom, pitch: 58, duration: 900 })
+    } else {
+      map.easeTo({ pitch: 0, bearing: 0, duration: 800 })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [navOn])
 
   // Линейка: линия + перетаскиваемые точки с накопленным расстоянием
   const rulerPts = props.ruler.points
@@ -229,7 +277,9 @@ export default function MapView(props: Props) {
     }
     meRef.current.setLngLat(me.coord)
     meRef.current.setRotation(me.heading ?? 0)
-    meRef.current.getElement().classList.toggle('has-heading', me.heading !== null)
+    const el = meRef.current.getElement()
+    el.classList.toggle('has-heading', me.heading !== null)
+    el.classList.toggle('is-nav', !!propsRef.current.nav)
   }, [me])
 
   // 3D: наклон карты (здания в стиле уже объёмные)
@@ -252,7 +302,7 @@ export default function MapView(props: Props) {
   // Вписать маршрут / точки в экран
   useEffect(() => {
     const map = mapRef.current
-    if (!map || !props.fitKey) return
+    if (!map || !props.fitKey || propsRef.current.nav) return
     const { routes, waypoints } = propsRef.current
     // В область включаем и сами маркеры: маршрут «прилипает» к дороге и может их не покрывать
     const boxes = Object.values(routes).map((r) => r!.bbox)

@@ -181,16 +181,33 @@ export function setRouteData(
   alt.setData({ type: 'FeatureCollection', features: alternatives.map((x) => line(x.route.geometry, { idx: x.idx })) })
 }
 
-export function paintActive(map: MlMap, mode: TravelMode, t: number, night: boolean) {
+/** Градиент с серой пройденной частью (0..passed) — для режима навигации */
+function withPassed(grey: string, c1: string, c2: string, passed: number): ExpressionSpecification {
+  const p = Math.min(0.998, Math.max(0.0001, passed))
+  return ['interpolate', ['linear'], ['line-progress'], 0, grey, p, grey, p + 0.001, c1, 1, c2]
+}
+
+/**
+ * Раскраска активной линии. t — доля «прорисовки» (анимация появления),
+ * passed — доля уже пройденного пути в навигации (серым).
+ */
+export function paintActive(map: MlMap, mode: TravelMode, t: number, night: boolean, passed = 0) {
   if (!map.getLayer(L_LINE)) return
   const c = ROUTE_COLORS[mode]
   const casing = night ? 'rgba(14,17,23,0.92)' : '#ffffff'
   // Днём — тёмная мягкая тень (линия «отрывается» от карты), ночью — цветное свечение
   const glow1 = night ? hexToRgba(c.from, 0.55) : 'rgba(15,23,42,0.30)'
   const glow2 = night ? hexToRgba(c.to, 0.55) : 'rgba(15,23,42,0.30)'
-  map.setPaintProperty(L_GLOW, 'line-gradient', gradient(glow1, glow2, t))
-  map.setPaintProperty(L_CASING, 'line-gradient', gradient(casing, casing, t))
-  map.setPaintProperty(L_LINE, 'line-gradient', gradient(c.from, c.to, t))
+  if (passed > 0 && t >= 0.999) {
+    const grey = night ? '#5b6372' : '#a3acb9'
+    map.setPaintProperty(L_GLOW, 'line-gradient', withPassed(CLEAR, glow1, glow2, passed))
+    map.setPaintProperty(L_CASING, 'line-gradient', gradient(casing, casing, 1))
+    map.setPaintProperty(L_LINE, 'line-gradient', withPassed(grey, c.from, c.to, passed))
+  } else {
+    map.setPaintProperty(L_GLOW, 'line-gradient', gradient(glow1, glow2, t))
+    map.setPaintProperty(L_CASING, 'line-gradient', gradient(casing, casing, t))
+    map.setPaintProperty(L_LINE, 'line-gradient', gradient(c.from, c.to, t))
+  }
   // Пунктир — только на крупных масштабах, на обзорном он «дробит» линию
   map.setPaintProperty(
     L_FOOT_DOTS,

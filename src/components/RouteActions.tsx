@@ -11,13 +11,15 @@ interface Props {
   flying: boolean
   canFly: boolean
   onFly(): void
+  /** «В путь» — запуск навигации (simulate — демо-поездка без GPS) */
+  onNavigate(simulate: boolean): void
 }
 
 const btn =
   'flex flex-1 items-center whitespace-nowrap justify-center gap-1.5 rounded-2xl border border-[var(--border)] px-2 py-2.5 text-[12.5px] font-bold transition hover:bg-[var(--hover)] active:scale-[0.98]'
 
 /** Поделиться маршрутом, пролёт камеры, открыть во внешних картах. */
-export function RouteActions({ points, mode, flying, canFly, onFly }: Props) {
+export function RouteActions({ points, mode, flying, canFly, onFly, onNavigate }: Props) {
   const toast = useToast()
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
@@ -48,7 +50,39 @@ export function RouteActions({ points, mode, flying, canFly, onFly }: Props) {
 
   const links = externalLinks(points, mode)
 
+  const go = {
+    foot: 'from-emerald-500 to-teal-600 shadow-emerald-500/30',
+    bike: 'from-amber-500 to-orange-600 shadow-orange-500/30',
+    car: 'from-indigo-500 to-violet-600 shadow-indigo-500/30',
+  }[mode]
+
   return (
+    <div className="space-y-2">
+    {canFly && (
+      <div className="flex items-stretch gap-2">
+        <motion.button
+          type="button"
+          whileTap={{ scale: 0.97 }}
+          onClick={() => onNavigate(false)}
+          className={`flex flex-1 items-center justify-center gap-2 rounded-2xl bg-gradient-to-br py-3.5 text-[16px] font-extrabold tracking-tight text-white shadow-lg ${go}`}
+        >
+          <svg viewBox="0 0 24 24" className="size-5" fill="currentColor" aria-hidden>
+            <path d="M12 2.5 20 21l-8-4.5L4 21 12 2.5Z" />
+          </svg>
+          В путь
+        </motion.button>
+        <button
+          type="button"
+          onClick={() => onNavigate(true)}
+          className="rounded-2xl border border-[var(--border)] px-3 text-[12px] leading-tight font-bold text-[var(--muted)] transition hover:bg-[var(--hover)] hover:text-[var(--fg)]"
+          title="Проехать по маршруту виртуально — посмотреть, как работает навигация"
+        >
+          Демо-
+          <br />
+          поездка
+        </button>
+      </div>
+    )}
     <div className="flex gap-2">
       <button type="button" onClick={share} className={btn}>
         <IconShare className="size-4" /> Поделиться
@@ -109,6 +143,7 @@ export function RouteActions({ points, mode, flying, canFly, onFly }: Props) {
           )}
         </AnimatePresence>
       </div>
+    </div>
     </div>
   )
 }

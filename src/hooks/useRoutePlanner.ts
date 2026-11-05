@@ -155,6 +155,15 @@ export function useRoutePlanner() {
     [setPointFromCoord],
   )
 
+  /** Навигация: старт — текущее место; пройденные остановки убираем (перестроение маршрута) */
+  const startFrom = useCallback((coord: LngLat, dropIds: Which[] = []) => {
+    reverseCtl.current.forEach((c) => c.abort())
+    setSlots((ss) => {
+      const rest = ss.filter((s, i) => i === 0 || i === ss.length - 1 || !dropIds.includes(s.id))
+      return rest.map((s, i) => (i === 0 ? { ...s, wp: { coord, label: 'Моё местоположение', sublabel: 'Навигация' } } : s))
+    })
+  }, [])
+
   const setAlternative = useCallback((mode: TravelMode, idx: number) => {
     setRoutes((r) => ({ ...r, [mode]: { ...r[mode], selected: idx } }))
   }, [])
@@ -254,6 +263,7 @@ export function useRoutePlanner() {
     swap,
     clearAll,
     loadPoints,
+    startFrom,
   }
 }
 
