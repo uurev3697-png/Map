@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { getFavorites, getHistory, getQuick } from '../lib/places'
+import { getFavorites, getHistory, getParking, getQuick, getSavedRoutes } from '../lib/places'
 
 /** История, избранное, Дом и Работа — с подпиской на изменения (в т.ч. из других вкладок) */
 export function usePlaces() {
@@ -13,5 +13,12 @@ export function usePlaces() {
       window.removeEventListener('storage', on)
     }
   }, [])
-  return { favorites: getFavorites(), history: getHistory(), home: getQuick('home'), work: getQuick('work') }
+  return {
+    favorites: getFavorites(),
+    history: getHistory(),
+    home: getQuick('home'),
+    work: getQuick('work'),
+    routes: getSavedRoutes(),
+    parking: getParking(),
+  }
 }

@@ -14,6 +14,10 @@ interface Props {
   onToggleVoice(): void
   onRecenter(): void
   onStop(): void
+  /** «Обратно» — развернуть маршрут */
+  onBack(): void
+  /** «Запомнить парковку» (после поездки на машине) */
+  onPark(): void
 }
 
 const BANNER: Record<TravelMode, string> = {
@@ -35,7 +39,7 @@ function SpeakerIcon({ on }: { on: boolean }) {
 }
 
 /** Экран навигации «В путь»: манёвр сверху, остаток пути и управление снизу. */
-export function NavigationOverlay({ nav, mode, simulate, voice, follow, rerouting, onToggleVoice, onRecenter, onStop }: Props) {
+export function NavigationOverlay({ nav, mode, simulate, voice, follow, rerouting, onToggleVoice, onRecenter, onStop, onBack, onPark }: Props) {
   const spring = { type: 'spring' as const, stiffness: 380, damping: 34 }
   return (
     <>
@@ -66,20 +70,40 @@ export function NavigationOverlay({ nav, mode, simulate, voice, follow, reroutin
             <motion.div
               key="arrived"
               {...fadeCard}
-              className="pointer-events-auto flex items-center gap-3 rounded-[24px] bg-gradient-to-br from-emerald-500 to-green-700 p-4 text-white shadow-2xl"
+              className="pointer-events-auto rounded-[24px] bg-gradient-to-br from-emerald-500 to-green-700 p-4 text-white shadow-2xl"
             >
-              <span className="grid size-14 place-items-center rounded-2xl bg-white/20 text-[30px]">🏁</span>
-              <div className="flex-1">
-                <p className="text-[20px] font-extrabold tracking-tight">Вы прибыли!</p>
-                <p className="text-[13px] opacity-85">Маршрут завершён</p>
+              <div className="flex items-center gap-3">
+                <span className="grid size-14 place-items-center rounded-2xl bg-white/20 text-[30px]">🏁</span>
+                <div className="flex-1">
+                  <p className="text-[20px] font-extrabold tracking-tight">Вы прибыли!</p>
+                  <p className="text-[13px] opacity-85">Маршрут завершён</p>
+                </div>
               </div>
-              <button
-                type="button"
-                onClick={onStop}
-                className="rounded-full bg-white px-4 py-2 text-[13.5px] font-bold text-emerald-700 transition active:scale-95"
-              >
-                Готово
-              </button>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {mode === 'car' && (
+                  <button
+                    type="button"
+                    onClick={onPark}
+                    className="flex-1 rounded-full bg-white/20 px-3 py-2 text-[13px] font-bold whitespace-nowrap transition hover:bg-white/30 active:scale-95"
+                  >
+                    🅿️ Запомнить парковку
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={onBack}
+                  className="flex-1 rounded-full bg-white/20 px-3 py-2 text-[13px] font-bold whitespace-nowrap transition hover:bg-white/30 active:scale-95"
+                >
+                  ↩ Обратно
+                </button>
+                <button
+                  type="button"
+                  onClick={onStop}
+                  className="flex-1 rounded-full bg-white px-4 py-2 text-[13.5px] font-bold text-emerald-700 transition active:scale-95"
+                >
+                  Готово
+                </button>
+              </div>
             </motion.div>
           ) : (
             <motion.div

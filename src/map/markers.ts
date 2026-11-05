@@ -36,3 +36,13 @@ export function createMeElement(): HTMLDivElement {
   el.innerHTML = `<div class="me-marker__cone"></div><div class="me-marker__pulse"></div><div class="me-marker__dot"></div>`
   return el
 }
+
+/** Маркер парковки: синяя плашка «P» с машинкой */
+export function createParkingElement(): HTMLDivElement {
+  const el = document.createElement('div')
+  el.className = 'parking-marker is-dropping'
+  el.setAttribute('aria-label', 'Моя машина')
+  el.title = 'Моя машина'
+  el.innerHTML = '<div class="parking-marker__badge"><span>P</span><span class="parking-marker__car">🚗</span></div>'
+  return el
+}

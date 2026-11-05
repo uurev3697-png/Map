@@ -179,3 +179,15 @@ export const IconTrash = (p: P) => (
     <path d="M4 7h16M9.5 7V4.5h5V7M6.5 7l1 13h9l1-13" />
   </Svg>
 )
+
+export const IconBookmark = ({ filled, ...p }: P & { filled?: boolean }) => (
+  <Svg {...p}>
+    <path d="M6.5 3.5h11a1 1 0 0 1 1 1V21l-6.5-4.5L5.5 21V4.5a1 1 0 0 1 1-1Z" fill={filled ? 'currentColor' : 'none'} />
+  </Svg>
+)
+export const IconParking = (p: P) => (
+  <Svg {...p}>
+    <rect x="3.5" y="3.5" width="17" height="17" rx="4" />
+    <path d="M9.5 17V7.5H13a3 3 0 0 1 0 6H9.5" />
+  </Svg>
+)

@@ -36,6 +36,8 @@ export interface MapViewProps {
   /** Точка, к которой нужно подлететь (например, шаг маршрута) */
   focus: { coord: LngLat; key: number } | null
   me: MyLocation | null
+  /** Место парковки («Где моя машина») */
+  parking: LngLat | null
   /** Наклон карты с 3D-зданиями */
   tilt3d: boolean
   /** Линейка: режим измерения и её точки */

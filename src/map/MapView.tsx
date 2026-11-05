@@ -8,7 +8,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { LngLat } from '../services/types'
 import { flyAlongRoute } from './flyAlong'
 import { createRulerVertex, ensureRulerLayers, rulerDistances, setRulerData, updateRulerVertex } from './ruler'
-import { createMarkerElement, createMeElement, replayMarker, updateMarkerElement } from './markers'
+import { createMarkerElement, createMeElement, createParkingElement, replayMarker, updateMarkerElement } from './markers'
 import { animateActive, ensureRouteLayers, L_ALT_HIT, paintActive, setRouteData } from './routeLayers'
 import { styleFor, type LayerId } from './styles'
 import type { MapViewProps } from './types'
@@ -29,6 +29,7 @@ export default function MapView(props: Props) {
   const markersRef = useRef(new Map<string, Marker>())
   const meRef = useRef<Marker | null>(null)
   const rulerRef = useRef<Marker[]>([])
+  const parkingRef = useRef<Marker | null>(null)
   const propsRef = useRef(props)
   propsRef.current = props
   const cancelAnimRef = useRef<() => void>(() => {})
@@ -104,6 +105,7 @@ export default function MapView(props: Props) {
       markersRef.current.clear()
       meRef.current = null
       rulerRef.current = []
+      parkingRef.current = null
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -259,6 +261,20 @@ export default function MapView(props: Props) {
       updateRulerVertex(m.getElement(), i, dist[i], i === rulerPts.length - 1)
     })
   }, [rulerPts, styleReady])
+
+  // Парковка
+  const parkingKey = props.parking ? props.parking.join(',') : ''
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+    parkingRef.current?.remove()
+    parkingRef.current = null
+    if (!props.parking) return
+    const el = createParkingElement()
+    el.addEventListener('click', (e) => e.stopPropagation())
+    parkingRef.current = new maplibregl.Marker({ element: el, anchor: 'bottom' }).setLngLat(props.parking).addTo(map)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [parkingKey])
 
   // «Я здесь»
   const me = props.me

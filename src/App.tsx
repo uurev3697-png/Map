@@ -14,6 +14,9 @@ import { useToast } from './components/Toast'
 import { slotKind, slotLabel } from './components/WaypointFields'
 import { useMediaQuery } from './hooks/useMediaQuery'
 import { useMyLocation } from './hooks/useMyLocation'
+import { usePlaces } from './hooks/usePlaces'
+import { setParking } from './lib/places'
+import { geocoder } from './services/geocoding'
 import { announce, useNavigation, useVoiceGuidance, useWakeLock } from './hooks/useNavigation'
 import { projectOnLine } from './lib/geo'
 import { cumulative, haversine } from './services/elevation'
@@ -307,6 +310,23 @@ export default function App() {
     // Голос в браузере включается только по жесту пользователя — «разогреваем» его здесь
     if (voice && window.speechSynthesis) window.speechSynthesis.speak(new SpeechSynthesisUtterance(''))
   }
+  const { parking } = usePlaces()
+  /** После прибытия: развернуть маршрут обратно */
+  const goBack = () => {
+    stopNavigation()
+    planner.swap()
+    toast.show({ kind: 'info', title: 'Маршрут развёрнут', message: 'Нажмите «В путь», чтобы ехать обратно.' })
+  }
+  /** После поездки на машине: запомнить, где оставили машину */
+  const parkHere = async () => {
+    const coord = me?.coord ?? nav?.pos ?? activeRoute?.geometry[activeRoute.geometry.length - 1]
+    if (!coord) return
+    const place = await geocoder.reverse(coord).catch(() => null)
+    setParking({ coord, at: Date.now(), label: place?.name })
+    toast.show({ kind: 'success', title: 'Место парковки сохранено', message: 'Найти машину: «Мои места» → «Дойти до машины»' })
+    stopNavigation()
+  }
+
   const stopNavigation = () => {
     setNavMode(null)
     setRerouting(false)
@@ -335,6 +355,7 @@ export default function App() {
     fitKey: planner.fitKey,
     focus,
     me: nav ? { coord: nav.pos, heading: nav.heading } : me,
+    parking: parking?.coord ?? null,
     tilt3d,
     nav: nav ? { pos: nav.pos, heading: nav.heading, progress: nav.progress, follow } : null,
     onUserPan: () => navOn && setFollow(false),
@@ -409,6 +430,8 @@ export default function App() {
             onToggleVoice={toggleVoice}
             onRecenter={() => setFollow(true)}
             onStop={stopNavigation}
+            onBack={goBack}
+            onPark={parkHere}
           />
         )}
       </AnimatePresence>
