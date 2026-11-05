@@ -98,8 +98,8 @@ npm run lint      # oxlint
 
 ### Как получить бесплатный ключ OpenRouteService
 
-1. Зарегистрируйтесь на <https://openrouteservice.org/dev/#/signup>.
-2. В личном кабинете (**Dashboard → Tokens**) создайте токен с типом **Standard** (бесплатный тариф).
+1. Зарегистрируйтесь на <https://account.heigit.org/signup>.
+2. Войдите на <https://account.heigit.org> (ORS перенёс аккаунты на портал HeiGIT), в разделе ключей создайте ключ для openrouteservice с бесплатным тарифом **Standard**.
 3. Скопируйте ключ в `.env`:
    ```
    VITE_ORS_API_KEY=ваш_ключ
